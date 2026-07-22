@@ -2,12 +2,12 @@ import { Link, useRouterState } from "@tanstack/react-router";
 import { Home, LayoutGrid, ShoppingCart, Settings } from "lucide-react";
 import { useCart } from "@/lib/cart";
 
-const items = [
+const items: Array<{ to: string; label: string; Icon: typeof Home; badge?: boolean }> = [
   { to: "/", label: "الرئيسية", Icon: Home },
   { to: "/categories", label: "الأقسام", Icon: LayoutGrid },
   { to: "/cart", label: "السلة", Icon: ShoppingCart, badge: true },
   { to: "/admin", label: "لوحة التحكم", Icon: Settings },
-] as const;
+];
 
 export function BottomNav() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });

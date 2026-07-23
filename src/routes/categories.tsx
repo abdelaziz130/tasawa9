@@ -5,6 +5,7 @@ import { AppHeader } from "@/components/AppHeader";
 import { ProductCard } from "@/components/ProductCard";
 import { ProductDetailModal } from "@/components/ProductDetailModal";
 import { CheckoutModal } from "@/components/CheckoutModal";
+import { WhatsAppFab } from "@/components/WhatsAppFab";
 import { supabase } from "@/integrations/supabase/client";
 import type { Product } from "@/lib/types";
 import { Loader2, Tag } from "lucide-react";
@@ -14,6 +15,8 @@ export const Route = createFileRoute("/categories")({
     meta: [
       { title: "الأقسام — متجر الجزائر" },
       { name: "description", content: "تصفح المنتجات حسب القسم." },
+      { property: "og:title", content: "الأقسام — متجر الجزائر" },
+      { property: "og:description", content: "تصفح المنتجات حسب القسم." },
     ],
   }),
   component: CategoriesPage,
@@ -106,6 +109,7 @@ function CategoriesPage() {
         }}
       />
       <CheckoutModal open={checkoutOpen} onClose={() => setCheckoutOpen(false)} />
+      <WhatsAppFab />
     </>
   );
 }
@@ -124,8 +128,8 @@ function CatChip({
       onClick={onClick}
       className={`shrink-0 h-9 px-4 rounded-full text-sm font-bold flex items-center gap-1.5 transition ${
         active
-          ? "bg-primary text-primary-foreground"
-          : "bg-secondary text-secondary-foreground hover:bg-secondary/70"
+          ? "btn-primary"
+          : "glass text-secondary-foreground hover:bg-white/5"
       }`}
     >
       <Tag className="size-3.5" />

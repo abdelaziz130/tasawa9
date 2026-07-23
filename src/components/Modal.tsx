@@ -23,13 +23,13 @@ export function Modal({
 
   if (!open) return null;
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm p-0 sm:p-4">
-      <div className="w-full max-w-md bg-card rounded-t-3xl sm:rounded-3xl max-h-[92dvh] overflow-hidden flex flex-col animate-in slide-in-from-bottom-6 fade-in duration-200">
-        <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/70 backdrop-blur-md p-0 sm:p-4">
+      <div className="w-full max-w-md glass-strong rounded-t-3xl sm:rounded-3xl max-h-[92dvh] overflow-hidden flex flex-col animate-in slide-in-from-bottom-6 fade-in duration-200">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
           <h2 className="font-bold text-lg">{title}</h2>
           <button
             onClick={onClose}
-            className="grid place-items-center size-9 rounded-full hover:bg-muted"
+            className="grid place-items-center size-9 rounded-full hover:bg-white/10"
             aria-label="إغلاق"
           >
             <X className="size-5" />

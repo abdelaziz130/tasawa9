@@ -2,6 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { AppHeader } from "@/components/AppHeader";
 import { CheckoutModal } from "@/components/CheckoutModal";
+import { WhatsAppFab } from "@/components/WhatsAppFab";
 import { useCart } from "@/lib/cart";
 import { formatDZD } from "@/lib/format";
 import { Minus, Plus, ShoppingCart, Trash2 } from "lucide-react";
@@ -11,6 +12,8 @@ export const Route = createFileRoute("/cart")({
     meta: [
       { title: "السلة — متجر الجزائر" },
       { name: "description", content: "استعرض المنتجات في سلتك وأكمل الطلب." },
+      { property: "og:title", content: "السلة — متجر الجزائر" },
+      { property: "og:description", content: "أكمل طلبك مع الدفع عند الاستلام." },
     ],
   }),
   component: CartPage,
@@ -32,7 +35,7 @@ function CartPage() {
             <p className="font-medium">السلة فارغة</p>
             <Link
               to="/"
-              className="inline-block rounded-xl bg-primary text-primary-foreground px-5 py-2.5 text-sm font-bold"
+              className="inline-block rounded-xl btn-primary px-5 py-2.5 text-sm font-bold"
             >
               تسوق الآن
             </Link>
@@ -41,10 +44,7 @@ function CartPage() {
           <>
             <ul className="space-y-2">
               {items.map((i) => (
-                <li
-                  key={i.id}
-                  className="flex gap-3 rounded-2xl border border-border bg-card p-2.5"
-                >
+                <li key={i.id} className="flex gap-3 rounded-2xl glass p-2.5">
                   <div className="size-20 rounded-xl bg-muted overflow-hidden shrink-0">
                     {i.image_url ? (
                       <img src={i.image_url} alt={i.title} className="size-full object-cover" />
@@ -62,17 +62,17 @@ function CartPage() {
                       </button>
                     </div>
                     <div className="flex items-center justify-between">
-                      <div className="flex items-center border border-border rounded-lg overflow-hidden">
+                      <div className="flex items-center rounded-lg overflow-hidden glass">
                         <button
                           onClick={() => setQty(i.id, i.quantity - 1)}
-                          className="size-8 grid place-items-center hover:bg-muted"
+                          className="size-8 grid place-items-center hover:bg-white/5"
                         >
                           <Minus className="size-3.5" />
                         </button>
                         <span className="w-8 text-center text-sm font-bold">{i.quantity}</span>
                         <button
                           onClick={() => setQty(i.id, i.quantity + 1)}
-                          className="size-8 grid place-items-center hover:bg-muted"
+                          className="size-8 grid place-items-center hover:bg-white/5"
                         >
                           <Plus className="size-3.5" />
                         </button>
@@ -86,14 +86,14 @@ function CartPage() {
               ))}
             </ul>
 
-            <div className="rounded-2xl bg-card border border-border p-4 space-y-3 sticky bottom-20">
+            <div className="glass-strong rounded-2xl p-4 space-y-3 sticky bottom-24">
               <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">المجموع</span>
+                <span className="text-muted-foreground">المجموع (بدون التوصيل)</span>
                 <span className="text-2xl font-extrabold text-primary">{formatDZD(total)}</span>
               </div>
               <button
                 onClick={() => setCheckoutOpen(true)}
-                className="w-full h-12 rounded-xl bg-primary text-primary-foreground font-extrabold hover:bg-primary/90"
+                className="w-full h-12 rounded-xl btn-primary font-extrabold"
               >
                 إتمام الطلب — الدفع عند الاستلام
               </button>
@@ -103,6 +103,7 @@ function CartPage() {
       </main>
 
       <CheckoutModal open={checkoutOpen} onClose={() => setCheckoutOpen(false)} />
+      <WhatsAppFab />
     </>
   );
 }

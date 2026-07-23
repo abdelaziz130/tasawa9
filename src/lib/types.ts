@@ -10,6 +10,13 @@ export type Product = {
   created_at: string;
 };
 
+export type CartItemLite = {
+  id: string;
+  title: string;
+  price: number;
+  quantity: number;
+};
+
 export type Order = {
   id: string;
   customer_name: string;
@@ -17,11 +24,20 @@ export type Order = {
   wilaya: string;
   commune: string;
   delivery_type: string;
-  cart_items: Array<{ id: string; title: string; price: number; quantity: number }>;
+  shipping_fee: number;
+  cart_items: CartItemLite[];
   total_price: number;
   status: string;
   created_at: string;
 };
 
-export const ORDER_STATUSES = ["جديد", "مؤكد", "تم الشحن", "تم التسليم", "ملغى"] as const;
+export type WilayaShipping = {
+  id: string;
+  wilaya_code: number;
+  wilaya_name: string;
+  home_fee: number;
+  desk_fee: number;
+};
+
+export const ORDER_STATUSES = ["جديد", "مؤكد", "قيد الشحن", "تم التسليم", "ملغى"] as const;
 export type OrderStatus = (typeof ORDER_STATUSES)[number];

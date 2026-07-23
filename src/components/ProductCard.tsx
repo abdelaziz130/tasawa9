@@ -1,6 +1,6 @@
 import { formatDZD } from "@/lib/format";
 import type { Product } from "@/lib/types";
-import { ShoppingBag } from "lucide-react";
+import { ShoppingBag, Zap } from "lucide-react";
 
 export function ProductCard({
   product,
@@ -15,9 +15,10 @@ export function ProductCard({
     product.old_price && product.old_price > product.price
       ? Math.round(100 - (Number(product.price) / Number(product.old_price)) * 100)
       : null;
+  const lowStock = product.stock > 0 && product.stock <= 5;
 
   return (
-    <div className="group rounded-2xl bg-card border border-border overflow-hidden shadow-sm hover:shadow-md transition">
+    <div className="group rounded-3xl glass overflow-hidden hover:border-primary/40 hover:-translate-y-0.5 transition duration-200">
       <button
         onClick={() => onOpen(product)}
         className="block w-full aspect-square bg-muted relative overflow-hidden"
@@ -35,12 +36,17 @@ export function ProductCard({
           </div>
         )}
         {discount && (
-          <span className="absolute top-2 right-2 bg-destructive text-destructive-foreground text-[11px] font-bold px-2 py-0.5 rounded-full">
+          <span className="absolute top-2 right-2 bg-destructive text-destructive-foreground text-[11px] font-extrabold px-2 py-0.5 rounded-full shadow">
             {`-${discount}%`}
           </span>
         )}
+        {lowStock && (
+          <span className="absolute bottom-2 right-2 bg-accent/95 text-accent-foreground text-[10px] font-extrabold px-2 py-0.5 rounded-full shadow">
+            بقي {product.stock} فقط
+          </span>
+        )}
         {product.stock <= 0 && (
-          <span className="absolute inset-0 grid place-items-center bg-black/50 text-white text-sm font-bold">
+          <span className="absolute inset-0 grid place-items-center bg-black/60 text-white text-sm font-extrabold">
             نفذ المخزون
           </span>
         )}
@@ -63,9 +69,9 @@ export function ProductCard({
         <button
           onClick={() => onBuy(product)}
           disabled={product.stock <= 0}
-          className="w-full h-9 rounded-xl bg-primary text-primary-foreground text-sm font-bold hover:bg-primary/90 active:scale-[0.98] transition disabled:opacity-50 disabled:cursor-not-allowed"
+          className="w-full h-9 rounded-xl btn-primary text-sm font-extrabold active:scale-[0.98] transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-1"
         >
-          اشترِ الآن
+          <Zap className="size-3.5" /> اشترِ الآن
         </button>
       </div>
     </div>

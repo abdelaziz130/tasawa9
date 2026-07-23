@@ -5,18 +5,22 @@ import { AppHeader } from "@/components/AppHeader";
 import { ProductCard } from "@/components/ProductCard";
 import { ProductDetailModal } from "@/components/ProductDetailModal";
 import { CheckoutModal } from "@/components/CheckoutModal";
+import { StoriesBanner } from "@/components/StoriesBanner";
+import { WhatsAppFab } from "@/components/WhatsAppFab";
 import { supabase } from "@/integrations/supabase/client";
 import type { Product } from "@/lib/types";
-import { Loader2, PackageSearch } from "lucide-react";
+import { Loader2, PackageSearch, Sparkles } from "lucide-react";
 
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "متجر الجزائر — الرئيسية" },
+      { title: "متجر الجزائر — تسوق أونلاين مع الدفع عند الاستلام" },
       {
         name: "description",
-        content: "استعرض أحدث المنتجات مع الدفع عند الاستلام في جميع ولايات الجزائر.",
+        content: "متجر إلكتروني جزائري: تصفح المنتجات واطلب الدفع عند الاستلام مع توصيل لجميع 58 ولاية.",
       },
+      { property: "og:title", content: "متجر الجزائر" },
+      { property: "og:description", content: "تسوق أونلاين مع الدفع عند الاستلام." },
     ],
   }),
   component: HomePage,
@@ -52,17 +56,33 @@ function HomePage() {
     );
   }, [data, search]);
 
+  const openProduct = (p: Product) => {
+    setSelected(p);
+    setDetailOpen(true);
+  };
+
   return (
     <>
       <AppHeader search={search} onSearch={setSearch} />
       <main className="px-3 py-4">
-        <div className="mb-3 rounded-2xl bg-gradient-to-l from-accent/20 to-primary/10 border border-accent/30 p-3 flex items-center gap-3">
-          <div className="text-2xl">🚚</div>
-          <div className="text-sm">
-            <div className="font-bold">توصيل سريع لجميع الولايات</div>
-            <div className="text-muted-foreground text-xs">الدفع عند الاستلام</div>
+        {/* Hero */}
+        <div className="mb-4 rounded-3xl glass p-4 relative overflow-hidden">
+          <div className="absolute -top-6 -left-6 size-24 rounded-full bg-primary/20 blur-2xl" />
+          <div className="absolute -bottom-8 -right-6 size-28 rounded-full bg-accent/20 blur-2xl" />
+          <div className="relative flex items-center gap-3">
+            <div className="text-3xl">🚚</div>
+            <div>
+              <div className="flex items-center gap-1.5 font-extrabold">
+                <Sparkles className="size-4 text-accent" /> توصيل سريع لجميع الولايات
+              </div>
+              <div className="text-xs text-muted-foreground">
+                الدفع عند الاستلام في 58 ولاية
+              </div>
+            </div>
           </div>
         </div>
+
+        <StoriesBanner products={data ?? []} onOpen={openProduct} />
 
         {isLoading ? (
           <div className="py-20 grid place-items-center text-muted-foreground">
@@ -78,18 +98,7 @@ function HomePage() {
         ) : (
           <div className="grid grid-cols-2 gap-3">
             {filtered.map((p) => (
-              <ProductCard
-                key={p.id}
-                product={p}
-                onOpen={(prod) => {
-                  setSelected(prod);
-                  setDetailOpen(true);
-                }}
-                onBuy={(prod) => {
-                  setSelected(prod);
-                  setDetailOpen(true);
-                }}
-              />
+              <ProductCard key={p.id} product={p} onOpen={openProduct} onBuy={openProduct} />
             ))}
           </div>
         )}
@@ -105,6 +114,7 @@ function HomePage() {
         }}
       />
       <CheckoutModal open={checkoutOpen} onClose={() => setCheckoutOpen(false)} />
+      <WhatsAppFab />
     </>
   );
 }

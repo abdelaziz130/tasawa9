@@ -23,6 +23,7 @@ export type Database = {
           delivery_type: string
           id: string
           phone: string
+          shipping_fee: number
           status: string
           total_price: number
           wilaya: string
@@ -35,6 +36,7 @@ export type Database = {
           delivery_type?: string
           id?: string
           phone: string
+          shipping_fee?: number
           status?: string
           total_price?: number
           wilaya: string
@@ -47,6 +49,7 @@ export type Database = {
           delivery_type?: string
           id?: string
           phone?: string
+          shipping_fee?: number
           status?: string
           total_price?: number
           wilaya?: string
@@ -89,12 +92,39 @@ export type Database = {
         }
         Relationships: []
       }
+      wilayas_shipping: {
+        Row: {
+          created_at: string
+          desk_fee: number
+          home_fee: number
+          id: string
+          wilaya_code: number
+          wilaya_name: string
+        }
+        Insert: {
+          created_at?: string
+          desk_fee?: number
+          home_fee?: number
+          id?: string
+          wilaya_code: number
+          wilaya_name: string
+        }
+        Update: {
+          created_at?: string
+          desk_fee?: number
+          home_fee?: number
+          id?: string
+          wilaya_code?: number
+          wilaya_name?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      is_admin: { Args: never; Returns: boolean }
     }
     Enums: {
       [_ in never]: never

@@ -7,6 +7,8 @@ import type { CartItemLite, Order, Product } from "@/lib/types";
 import { ORDER_STATUSES } from "@/lib/types";
 import { toast } from "sonner";
 import type { Session } from "@supabase/supabase-js";
+import { printInvoice } from "@/lib/invoice";
+import { customerWaLink } from "@/lib/whatsapp";
 import {
   Package,
   ShoppingBag,
@@ -22,9 +24,14 @@ import {
   PhoneCall,
   MessageCircle,
   Home,
+  Printer,
+  Ticket,
+  ShoppingCart,
 } from "lucide-react";
 
 const ADMIN_EMAIL = "chaib.aziz2004@gmail.com";
+
+type TabKey = "orders" | "products" | "coupons" | "abandoned";
 
 export const Route = createFileRoute("/admin")({
   head: () => ({
@@ -40,7 +47,7 @@ export const Route = createFileRoute("/admin")({
 function AdminPage() {
   const [session, setSession] = useState<Session | null>(null);
   const [ready, setReady] = useState(false);
-  const [tab, setTab] = useState<"orders" | "products">("orders");
+  const [tab, setTab] = useState<TabKey>("orders");
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -99,16 +106,25 @@ function AdminPage() {
 
       <StatsCards />
 
-      <div className="grid grid-cols-2 gap-2 rounded-2xl glass p-1">
+      <div className="grid grid-cols-4 gap-1 rounded-2xl glass p-1">
         <TabBtn active={tab === "orders"} onClick={() => setTab("orders")}>
           الطلبات
         </TabBtn>
         <TabBtn active={tab === "products"} onClick={() => setTab("products")}>
           المنتجات
         </TabBtn>
+        <TabBtn active={tab === "coupons"} onClick={() => setTab("coupons")}>
+          الأكواد
+        </TabBtn>
+        <TabBtn active={tab === "abandoned"} onClick={() => setTab("abandoned")}>
+          متروكة
+        </TabBtn>
       </div>
 
-      {tab === "orders" ? <OrdersPanel /> : <ProductsPanel />}
+      {tab === "orders" && <OrdersPanel />}
+      {tab === "products" && <ProductsPanel />}
+      {tab === "coupons" && <CouponsPanel />}
+      {tab === "abandoned" && <AbandonedPanel />}
     </main>
   );
 }
@@ -125,7 +141,7 @@ function TabBtn({
   return (
     <button
       onClick={onClick}
-      className={`h-10 rounded-xl text-sm font-bold transition ${
+      className={`h-10 rounded-xl text-xs font-bold transition ${
         active ? "btn-primary" : "text-muted-foreground"
       }`}
     >
@@ -140,7 +156,6 @@ function AdminLogin({ loggedIn }: { loggedIn: boolean }) {
   const [busy, setBusy] = useState(false);
   const navigate = useNavigate();
 
-  // Kick off bootstrap for the admin user (idempotent)
   useEffect(() => {
     fetch("/api/public/setup-admin").catch(() => {});
   }, []);
@@ -152,7 +167,6 @@ function AdminLogin({ loggedIn }: { loggedIn: boolean }) {
       email: email.trim(),
       password,
     });
-    // Retry once after triggering the setup route in case the admin wasn't provisioned yet
     if (error) {
       try {
         await fetch("/api/public/setup-admin");
@@ -168,7 +182,6 @@ function AdminLogin({ loggedIn }: { loggedIn: boolean }) {
       toast.error("بيانات الدخول غير صحيحة");
       return;
     }
-    // If a non-admin logs in, redirect
     const { data } = await supabase.auth.getUser();
     if (data.user?.email?.toLowerCase() !== ADMIN_EMAIL) {
       await supabase.auth.signOut();
@@ -331,12 +344,7 @@ function OrdersPanel() {
       ) : (
         <ul className="space-y-2">
           {filtered.map((o) => (
-            <OrderCard
-              key={o.id}
-              order={o}
-              onStatus={updateStatus}
-              onDelete={del}
-            />
+            <OrderCard key={o.id} order={o} onStatus={updateStatus} onDelete={del} />
           ))}
         </ul>
       )}
@@ -399,7 +407,7 @@ function OrderCard({
         {new Date(order.created_at).toLocaleString("ar-DZ")}
       </div>
 
-      <div className="grid grid-cols-2 gap-2">
+      <div className="grid grid-cols-3 gap-2">
         <a
           href={`tel:${order.phone}`}
           className="h-9 rounded-xl glass text-xs font-bold flex items-center justify-center gap-1"
@@ -414,6 +422,12 @@ function OrderCard({
         >
           <MessageCircle className="size-3.5" /> واتساب
         </a>
+        <button
+          onClick={() => printInvoice(order)}
+          className="h-9 rounded-xl bg-primary/15 text-primary text-xs font-bold flex items-center justify-center gap-1"
+        >
+          <Printer className="size-3.5" /> طباعة
+        </button>
       </div>
 
       <div className="flex items-center gap-2">
@@ -545,6 +559,285 @@ function ProductsPanel() {
             qc.invalidateQueries({ queryKey: ["products"] });
           }}
         />
+      )}
+    </div>
+  );
+}
+
+type Coupon = {
+  id: string;
+  code: string;
+  discount_type: string;
+  discount_value: number;
+  min_order: number;
+  active: boolean;
+  expires_at: string | null;
+  usage_limit: number | null;
+  times_used: number;
+  created_at: string;
+};
+
+function CouponsPanel() {
+  const qc = useQueryClient();
+  const [code, setCode] = useState("");
+  const [type, setType] = useState<"percent" | "fixed">("percent");
+  const [value, setValue] = useState("");
+  const [minOrder, setMinOrder] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const { data, isLoading } = useQuery({
+    queryKey: ["coupons"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("coupons")
+        .select("*")
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return (data ?? []) as Coupon[];
+    },
+  });
+
+  const add = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!code.trim() || !value) return toast.error("الرمز والقيمة مطلوبان");
+    setBusy(true);
+    const { error } = await supabase.from("coupons").insert({
+      code: code.trim().toUpperCase(),
+      discount_type: type,
+      discount_value: Number(value),
+      min_order: Number(minOrder) || 0,
+      active: true,
+    });
+    setBusy(false);
+    if (error) return toast.error(error.message);
+    setCode("");
+    setValue("");
+    setMinOrder("");
+    toast.success("تم إنشاء الرمز");
+    qc.invalidateQueries({ queryKey: ["coupons"] });
+  };
+
+  const toggle = async (c: Coupon) => {
+    const { error } = await supabase
+      .from("coupons")
+      .update({ active: !c.active })
+      .eq("id", c.id);
+    if (error) return toast.error(error.message);
+    qc.invalidateQueries({ queryKey: ["coupons"] });
+  };
+
+  const del = async (id: string) => {
+    if (!confirm("حذف هذا الرمز؟")) return;
+    const { error } = await supabase.from("coupons").delete().eq("id", id);
+    if (error) return toast.error(error.message);
+    qc.invalidateQueries({ queryKey: ["coupons"] });
+  };
+
+  return (
+    <div className="space-y-3">
+      <form onSubmit={add} className="rounded-2xl glass p-3 space-y-2">
+        <div className="flex items-center gap-1.5 font-extrabold text-sm">
+          <Ticket className="size-4 text-primary" /> إنشاء رمز جديد
+        </div>
+        <input
+          value={code}
+          onChange={(e) => setCode(e.target.value.toUpperCase())}
+          placeholder="الرمز (مثال: WELCOME10)"
+          className="ainp uppercase"
+          maxLength={30}
+          required
+        />
+        <div className="grid grid-cols-2 gap-2">
+          <select
+            value={type}
+            onChange={(e) => setType(e.target.value as "percent" | "fixed")}
+            className="ainp"
+          >
+            <option value="percent">نسبة %</option>
+            <option value="fixed">قيمة ثابتة</option>
+          </select>
+          <input
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            type="number"
+            min="0"
+            placeholder={type === "percent" ? "10" : "500"}
+            className="ainp"
+            required
+          />
+        </div>
+        <input
+          value={minOrder}
+          onChange={(e) => setMinOrder(e.target.value)}
+          type="number"
+          min="0"
+          placeholder="الحد الأدنى للطلب (اختياري)"
+          className="ainp"
+        />
+        <button
+          disabled={busy}
+          className="w-full h-10 rounded-xl btn-primary font-extrabold text-sm disabled:opacity-60"
+        >
+          {busy ? "..." : "إضافة الرمز"}
+        </button>
+        <style>{`.ainp{width:100%;height:40px;border-radius:12px;border:1px solid var(--border);padding:0 12px;font-size:14px;background:var(--input);color:var(--foreground);outline:none}.ainp:focus{border-color:var(--primary)}`}</style>
+      </form>
+
+      {isLoading ? (
+        <div className="py-6 grid place-items-center">
+          <Loader2 className="size-5 animate-spin text-muted-foreground" />
+        </div>
+      ) : (data ?? []).length === 0 ? (
+        <div className="py-6 text-center text-muted-foreground text-sm">لا توجد أكواد</div>
+      ) : (
+        <ul className="space-y-2">
+          {(data ?? []).map((c) => (
+            <li key={c.id} className="rounded-2xl glass p-3 space-y-1">
+              <div className="flex items-center justify-between">
+                <div className="font-extrabold text-lg tracking-wide">{c.code}</div>
+                <StatusBadge status={c.active ? "مؤكد" : "ملغى"} />
+              </div>
+              <div className="text-xs text-muted-foreground">
+                {c.discount_type === "percent"
+                  ? `خصم ${c.discount_value}%`
+                  : `خصم ${formatDZD(c.discount_value)}`}
+                {Number(c.min_order) > 0 && ` • حد أدنى ${formatDZD(c.min_order)}`}
+                {" • "}استُعمل {c.times_used}×
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => toggle(c)}
+                  className="flex-1 h-8 rounded-lg glass text-xs font-bold"
+                >
+                  {c.active ? "تعطيل" : "تفعيل"}
+                </button>
+                <button
+                  onClick={() => del(c.id)}
+                  className="size-8 grid place-items-center rounded-lg bg-destructive/10 text-destructive"
+                >
+                  <Trash2 className="size-4" />
+                </button>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+type AbandonedCart = {
+  id: string;
+  customer_name: string | null;
+  phone: string | null;
+  wilaya: string | null;
+  commune: string | null;
+  cart_items: CartItemLite[];
+  subtotal: number;
+  created_at: string;
+  updated_at: string;
+};
+
+function AbandonedPanel() {
+  const qc = useQueryClient();
+  const { data, isLoading } = useQuery({
+    queryKey: ["abandoned_carts"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("abandoned_carts")
+        .select("*")
+        .order("updated_at", { ascending: false });
+      if (error) throw error;
+      return (data ?? []) as unknown as AbandonedCart[];
+    },
+  });
+
+  const del = async (id: string) => {
+    if (!confirm("حذف هذه السلة؟")) return;
+    const { error } = await supabase.from("abandoned_carts").delete().eq("id", id);
+    if (error) return toast.error(error.message);
+    qc.invalidateQueries({ queryKey: ["abandoned_carts"] });
+  };
+
+  return (
+    <div className="space-y-2">
+      {isLoading ? (
+        <div className="py-6 grid place-items-center">
+          <Loader2 className="size-5 animate-spin text-muted-foreground" />
+        </div>
+      ) : (data ?? []).length === 0 ? (
+        <div className="py-10 text-center text-muted-foreground text-sm">
+          <ShoppingCart className="mx-auto size-10 opacity-40 mb-2" />
+          لا توجد سلات متروكة
+        </div>
+      ) : (
+        (data ?? []).map((c) => {
+          const items = (c.cart_items ?? []) as CartItemLite[];
+          const waMsg = `مرحباً ${c.customer_name ?? ""}، لاحظنا اهتمامك بمنتجاتنا في متجر الجزائر. هل تحتاج مساعدة لإتمام طلبك؟`;
+          return (
+            <div key={c.id} className="rounded-2xl glass p-3 space-y-2">
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <div className="font-bold">{c.customer_name ?? "— بدون اسم —"}</div>
+                  <div className="text-xs text-muted-foreground" dir="ltr">
+                    {c.phone ?? "—"}
+                  </div>
+                </div>
+                <span className="text-xs font-extrabold text-primary">
+                  {formatDZD(c.subtotal)}
+                </span>
+              </div>
+              {(c.wilaya || c.commune) && (
+                <div className="text-xs text-muted-foreground">
+                  {[c.wilaya, c.commune].filter(Boolean).join(" • ")}
+                </div>
+              )}
+              <ul className="text-xs space-y-0.5">
+                {items.map((i, idx) => (
+                  <li key={idx} className="flex justify-between">
+                    <span className="line-clamp-1">
+                      {i.quantity}× {i.title}
+                    </span>
+                    <span>{formatDZD(i.price * i.quantity)}</span>
+                  </li>
+                ))}
+              </ul>
+              <div className="text-[10px] text-muted-foreground">
+                آخر نشاط: {new Date(c.updated_at).toLocaleString("ar-DZ")}
+              </div>
+              <div className="grid grid-cols-3 gap-2">
+                {c.phone ? (
+                  <>
+                    <a
+                      href={`tel:${c.phone}`}
+                      className="h-9 rounded-xl glass text-xs font-bold flex items-center justify-center gap-1"
+                    >
+                      <PhoneCall className="size-3.5" /> اتصال
+                    </a>
+                    <a
+                      href={customerWaLink(c.phone, waMsg)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="h-9 rounded-xl bg-[#25D366]/20 text-[#25D366] text-xs font-bold flex items-center justify-center gap-1"
+                    >
+                      <MessageCircle className="size-3.5" /> واتساب
+                    </a>
+                  </>
+                ) : (
+                  <div className="col-span-2 h-9 rounded-xl glass text-xs text-muted-foreground flex items-center justify-center">
+                    لا يوجد هاتف
+                  </div>
+                )}
+                <button
+                  onClick={() => del(c.id)}
+                  className="h-9 rounded-xl bg-destructive/10 text-destructive text-xs font-bold flex items-center justify-center gap-1"
+                >
+                  <Trash2 className="size-3.5" /> حذف
+                </button>
+              </div>
+            </div>
+          );
+        })
       )}
     </div>
   );

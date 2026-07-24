@@ -1,11 +1,10 @@
 import { MessageCircle } from "lucide-react";
-
-const WHATSAPP_NUMBER = "213555000000";
+import { waLink } from "@/lib/whatsapp";
 
 export function WhatsAppFab() {
   return (
     <a
-      href={`https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent("مرحباً، أود الاستفسار عن منتج")}`}
+      href={waLink("مرحباً، أود الاستفسار عن منتج")}
       target="_blank"
       rel="noopener noreferrer"
       aria-label="واتساب"

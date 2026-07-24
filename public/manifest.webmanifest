@@ -1,0 +1,16 @@
+{
+  "name": "متجر الجزائر",
+  "short_name": "متجر الجزائر",
+  "description": "متجر إلكتروني جزائري مع الدفع عند الاستلام في جميع الولايات",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#12131a",
+  "theme_color": "#2E7D46",
+  "lang": "ar",
+  "dir": "rtl",
+  "icons": [
+    { "src": "/favicon.ico", "sizes": "48x48", "type": "image/x-icon" }
+  ]
+}

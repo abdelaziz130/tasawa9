@@ -1,6 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { Search, ShoppingBag } from "lucide-react";
 import { useCart } from "@/lib/cart";
+import { ThemeToggle } from "./ThemeToggle";
 
 export function AppHeader({
   search,
@@ -25,18 +26,21 @@ export function AppHeader({
               <div className="text-[11px] text-muted-foreground">توصيل لجميع الولايات</div>
             </div>
           </Link>
-          <Link
-            to="/cart"
-            className="relative grid size-10 place-items-center rounded-2xl glass hover:bg-white/10 transition"
-            aria-label="السلة"
-          >
-            <ShoppingBag className="size-5" />
-            {count > 0 && (
-              <span className="absolute -top-1 -left-1 min-w-5 h-5 px-1 rounded-full bg-accent text-accent-foreground text-[11px] font-extrabold flex items-center justify-center">
-                {count}
-              </span>
-            )}
-          </Link>
+          <div className="flex items-center gap-1.5">
+            <ThemeToggle />
+            <Link
+              to="/cart"
+              className="relative grid size-10 place-items-center rounded-2xl glass hover:bg-white/10 transition"
+              aria-label="السلة"
+            >
+              <ShoppingBag className="size-5" />
+              {count > 0 && (
+                <span className="absolute -top-1 -left-1 min-w-5 h-5 px-1 rounded-full bg-accent text-accent-foreground text-[11px] font-extrabold flex items-center justify-center">
+                  {count}
+                </span>
+              )}
+            </Link>
+          </div>
         </div>
         {onSearch && (
           <div className="mt-3 relative">

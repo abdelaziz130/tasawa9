@@ -7,9 +7,23 @@ import { supabase } from "@/integrations/supabase/client";
 import { formatDZD } from "@/lib/format";
 import type { WilayaShipping } from "@/lib/types";
 import { toast } from "sonner";
-import { Home, Building2, Loader2 } from "lucide-react";
+import { Home, Building2, Loader2, Truck, Tag, CheckCircle2, XCircle } from "lucide-react";
+import { estimateDelivery } from "@/lib/wilaya-eta";
+import { trackAbandonedCart, clearAbandonedCart } from "@/lib/abandoned-cart";
 
 type DeliveryType = "توصيل للمنزل" | "توصيل لمكتب الشحن";
+
+type Coupon = {
+  id: string;
+  code: string;
+  discount_type: string;
+  discount_value: number;
+  min_order: number;
+  active: boolean;
+  expires_at: string | null;
+  usage_limit: number | null;
+  times_used: number;
+};
 
 export function CheckoutModal({
   open,
@@ -30,6 +44,9 @@ export function CheckoutModal({
   const [commune, setCommune] = useState("");
   const [delivery, setDelivery] = useState<DeliveryType>("توصيل للمنزل");
   const [submitting, setSubmitting] = useState(false);
+  const [couponCode, setCouponCode] = useState("");
+  const [coupon, setCoupon] = useState<Coupon | null>(null);
+  const [checkingCoupon, setCheckingCoupon] = useState(false);
 
   const { data: wilayas } = useQuery({
     queryKey: ["wilayas_shipping"],
@@ -54,7 +71,68 @@ export function CheckoutModal({
       ? Number(selectedWilaya.home_fee)
       : Number(selectedWilaya.desk_fee)
     : 0;
-  const grandTotal = Number(subtotal) + shippingFee;
+
+  const discount = useMemo(() => {
+    if (!coupon) return 0;
+    if (Number(subtotal) < Number(coupon.min_order)) return 0;
+    if (coupon.discount_type === "percent") {
+      return Math.round((Number(subtotal) * Number(coupon.discount_value)) / 100);
+    }
+    return Math.min(Number(coupon.discount_value), Number(subtotal));
+  }, [coupon, subtotal]);
+
+  const grandTotal = Math.max(0, Number(subtotal) - discount) + shippingFee;
+
+  const applyCoupon = async () => {
+    const code = couponCode.trim().toUpperCase();
+    if (!code) return;
+    setCheckingCoupon(true);
+    const { data } = await supabase
+      .from("coupons")
+      .select("*")
+      .eq("code", code)
+      .eq("active", true)
+      .maybeSingle();
+    setCheckingCoupon(false);
+    const c = data as Coupon | null;
+    if (!c) {
+      setCoupon(null);
+      return toast.error("رمز غير صحيح");
+    }
+    if (c.expires_at && new Date(c.expires_at).getTime() < Date.now()) {
+      setCoupon(null);
+      return toast.error("انتهت صلاحية الرمز");
+    }
+    if (c.usage_limit != null && c.times_used >= c.usage_limit) {
+      setCoupon(null);
+      return toast.error("تم استنفاد الرمز");
+    }
+    if (Number(subtotal) < Number(c.min_order)) {
+      setCoupon(null);
+      return toast.error(`الحد الأدنى للطلب: ${formatDZD(c.min_order)}`);
+    }
+    setCoupon(c);
+    toast.success("تم تطبيق التخفيض");
+  };
+
+  const saveDraft = () => {
+    if (!items.length) return;
+    trackAbandonedCart({
+      customer_name: name.trim() || undefined,
+      phone: phone.trim() || undefined,
+      wilaya: selectedWilaya
+        ? `${String(selectedWilaya.wilaya_code).padStart(2, "0")} - ${selectedWilaya.wilaya_name}`
+        : undefined,
+      commune: commune.trim() || undefined,
+      cart_items: items.map((i) => ({
+        id: i.id,
+        title: i.title,
+        price: Number(i.price),
+        quantity: i.quantity,
+      })),
+      subtotal: Number(subtotal),
+    }).catch(() => {});
+  };
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -84,6 +162,12 @@ export function CheckoutModal({
       })
       .select("id")
       .single();
+    if (!error && coupon) {
+      await supabase
+        .from("coupons")
+        .update({ times_used: coupon.times_used + 1 })
+        .eq("id", coupon.id);
+    }
     setSubmitting(false);
     if (error || !data) {
       toast.error("فشل إرسال الطلب: " + (error?.message ?? ""));
@@ -99,6 +183,8 @@ export function CheckoutModal({
       delivery_type: delivery,
       shipping_fee: shippingFee,
       subtotal: Number(subtotal),
+      discount,
+      coupon_code: coupon?.code ?? null,
       total: grandTotal,
       items: items.map((i) => ({
         title: i.title,
@@ -110,18 +196,23 @@ export function CheckoutModal({
       sessionStorage.setItem("last_order", JSON.stringify(snapshot));
     } catch {}
 
+    clearAbandonedCart();
     clear();
     setName("");
     setPhone("");
     setWilayaCode("");
     setCommune("");
+    setCouponCode("");
+    setCoupon(null);
     onClose();
     navigate({ to: "/thank-you" });
   };
 
+  const eta = selectedWilaya ? estimateDelivery(selectedWilaya.wilaya_code, delivery) : null;
+
   return (
     <Modal open={open} onClose={onClose} title="إتمام الطلب — الدفع عند الاستلام">
-      <form onSubmit={submit} className="space-y-3">
+      <form onSubmit={submit} onBlur={saveDraft} className="space-y-3">
         <Field label="الاسم واللقب">
           <input
             value={name}
@@ -189,8 +280,56 @@ export function CheckoutModal({
           </div>
         </Field>
 
+        {eta && selectedWilaya && (
+          <div className="rounded-2xl bg-primary/10 border border-primary/30 p-3 flex items-center gap-2 text-sm">
+            <Truck className="size-4 text-primary" />
+            <span>
+              التوصيل لولاية <b>{selectedWilaya.wilaya_name}</b>: {eta}
+            </span>
+          </div>
+        )}
+
+        <Field label="رمز الخصم (اختياري)">
+          <div className="flex gap-2">
+            <div className="relative flex-1">
+              <Tag className="absolute right-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+              <input
+                value={couponCode}
+                onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
+                maxLength={30}
+                placeholder="مثال: WELCOME10"
+                className="fld pr-9 uppercase"
+              />
+            </div>
+            <button
+              type="button"
+              onClick={applyCoupon}
+              disabled={checkingCoupon || !couponCode.trim()}
+              className="h-11 px-4 rounded-xl btn-primary font-extrabold text-sm disabled:opacity-60"
+            >
+              {checkingCoupon ? <Loader2 className="size-4 animate-spin" /> : "تطبيق"}
+            </button>
+          </div>
+          {coupon && (
+            <div className="mt-1 text-xs text-success flex items-center gap-1">
+              <CheckCircle2 className="size-3.5" /> تم تطبيق {coupon.code}: −{formatDZD(discount)}
+              <button
+                type="button"
+                onClick={() => setCoupon(null)}
+                className="mr-1 text-muted-foreground hover:text-destructive"
+                aria-label="إزالة"
+              >
+                <XCircle className="size-3.5" />
+              </button>
+            </div>
+          )}
+        </Field>
+
         <div className="rounded-2xl glass p-3 space-y-1.5 text-sm">
           <Row label="المنتجات" value={formatDZD(subtotal)} />
+          {discount > 0 && (
+            <Row label={`خصم (${coupon?.code ?? ""})`} value={`− ${formatDZD(discount)}`} />
+          )}
           <Row
             label="رسوم التوصيل"
             value={selectedWilaya ? formatDZD(shippingFee) : "—"}

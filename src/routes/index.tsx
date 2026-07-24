@@ -9,7 +9,7 @@ import { StoriesBanner } from "@/components/StoriesBanner";
 import { WhatsAppFab } from "@/components/WhatsAppFab";
 import { supabase } from "@/integrations/supabase/client";
 import type { Product } from "@/lib/types";
-import { Loader2, PackageSearch, Sparkles } from "lucide-react";
+import { Loader2, PackageSearch, Sparkles, SlidersHorizontal } from "lucide-react";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -31,6 +31,9 @@ function HomePage() {
   const [selected, setSelected] = useState<Product | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
   const [checkoutOpen, setCheckoutOpen] = useState(false);
+  const [showFilters, setShowFilters] = useState(false);
+  const [category, setCategory] = useState<string | null>(null);
+  const [maxPrice, setMaxPrice] = useState<number | null>(null);
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["products"],
@@ -44,17 +47,30 @@ function HomePage() {
     },
   });
 
+  const categories = useMemo(() => {
+    const set = new Set<string>();
+    (data ?? []).forEach((p) => p.category && set.add(p.category));
+    return Array.from(set);
+  }, [data]);
+
+  const priceMax = useMemo(() => {
+    return (data ?? []).reduce((m, p) => Math.max(m, Number(p.price) || 0), 0);
+  }, [data]);
+
   const filtered = useMemo(() => {
     if (!data) return [];
     const q = search.trim().toLowerCase();
-    if (!q) return data;
-    return data.filter(
-      (p) =>
+    return data.filter((p) => {
+      if (category && p.category !== category) return false;
+      if (maxPrice != null && Number(p.price) > maxPrice) return false;
+      if (!q) return true;
+      return (
         p.title.toLowerCase().includes(q) ||
         (p.category ?? "").toLowerCase().includes(q) ||
-        (p.description ?? "").toLowerCase().includes(q),
-    );
-  }, [data, search]);
+        (p.description ?? "").toLowerCase().includes(q)
+      );
+    });
+  }, [data, search, category, maxPrice]);
 
   const openProduct = (p: Product) => {
     setSelected(p);
@@ -83,6 +99,70 @@ function HomePage() {
         </div>
 
         <StoriesBanner products={data ?? []} onOpen={openProduct} />
+
+        {/* Filters */}
+        <div className="mb-3 flex items-center gap-2">
+          <button
+            onClick={() => setShowFilters((v) => !v)}
+            className="h-9 px-3 rounded-full glass text-xs font-bold flex items-center gap-1.5"
+          >
+            <SlidersHorizontal className="size-3.5" />
+            الفلاتر
+            {(category || maxPrice != null) && (
+              <span className="size-1.5 rounded-full bg-accent" />
+            )}
+          </button>
+          {(category || maxPrice != null) && (
+            <button
+              onClick={() => {
+                setCategory(null);
+                setMaxPrice(null);
+              }}
+              className="text-xs text-muted-foreground underline"
+            >
+              مسح
+            </button>
+          )}
+          <span className="text-xs text-muted-foreground mr-auto">{filtered.length} منتج</span>
+        </div>
+        {showFilters && (
+          <div className="mb-4 rounded-2xl glass p-3 space-y-3">
+            {categories.length > 0 && (
+              <div>
+                <div className="text-xs font-bold mb-1.5">القسم</div>
+                <div className="flex gap-1.5 flex-wrap">
+                  <Chip active={!category} onClick={() => setCategory(null)}>
+                    الكل
+                  </Chip>
+                  {categories.map((c) => (
+                    <Chip key={c} active={category === c} onClick={() => setCategory(c)}>
+                      {c}
+                    </Chip>
+                  ))}
+                </div>
+              </div>
+            )}
+            {priceMax > 0 && (
+              <div>
+                <div className="text-xs font-bold mb-1.5 flex items-center justify-between">
+                  <span>السعر الأقصى</span>
+                  <span className="text-muted-foreground">
+                    {maxPrice != null ? `${maxPrice.toLocaleString()} دج` : "بلا حد"}
+                  </span>
+                </div>
+                <input
+                  type="range"
+                  min={0}
+                  max={Math.ceil(priceMax)}
+                  step={Math.max(100, Math.round(priceMax / 100))}
+                  value={maxPrice ?? priceMax}
+                  onChange={(e) => setMaxPrice(Number(e.target.value))}
+                  className="w-full accent-primary"
+                />
+              </div>
+            )}
+          </div>
+        )}
 
         {isLoading ? (
           <div className="py-20 grid place-items-center text-muted-foreground">
@@ -116,5 +196,26 @@ function HomePage() {
       <CheckoutModal open={checkoutOpen} onClose={() => setCheckoutOpen(false)} />
       <WhatsAppFab />
     </>
+  );
+}
+
+function Chip({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`h-8 px-3 rounded-full text-xs font-bold transition ${
+        active ? "btn-primary" : "glass text-muted-foreground"
+      }`}
+    >
+      {children}
+    </button>
   );
 }

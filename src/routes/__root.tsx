@@ -12,7 +12,10 @@ import { Toaster } from "sonner";
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { CartProvider } from "@/lib/cart";
+import { ThemeProvider } from "@/lib/theme";
 import { BottomNav } from "@/components/BottomNav";
+import { SocialProof } from "@/components/SocialProof";
+import { PWAInstallBanner } from "@/components/PWAInstallBanner";
 
 function NotFoundComponent() {
   return (
@@ -61,6 +64,10 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1, maximum-scale=1" },
       { name: "theme-color", content: "#2E7D46" },
+      { name: "apple-mobile-web-app-capable", content: "yes" },
+      { name: "apple-mobile-web-app-status-bar-style", content: "black-translucent" },
+      { name: "apple-mobile-web-app-title", content: "متجر الجزائر" },
+      { name: "mobile-web-app-capable", content: "yes" },
       { title: "متجر الجزائر — تسوق أونلاين مع الدفع عند الاستلام" },
       {
         name: "description",
@@ -74,6 +81,8 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     links: [
       { rel: "stylesheet", href: appCss },
       { rel: "icon", href: "/favicon.ico", type: "image/x-icon" },
+      { rel: "manifest", href: "/manifest.webmanifest" },
+      { rel: "apple-touch-icon", href: "/favicon.ico" },
       { rel: "preconnect", href: "https://fonts.googleapis.com" },
       { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
       {
@@ -106,13 +115,17 @@ function RootComponent() {
   const { queryClient } = Route.useRouteContext();
   return (
     <QueryClientProvider client={queryClient}>
-      <CartProvider>
-        <div className="mx-auto max-w-md min-h-dvh bg-background pb-20">
-          <Outlet />
-        </div>
-        <BottomNav />
-        <Toaster position="top-center" richColors closeButton />
-      </CartProvider>
+      <ThemeProvider>
+        <CartProvider>
+          <div className="mx-auto max-w-md min-h-dvh bg-background pb-20">
+            <Outlet />
+          </div>
+          <BottomNav />
+          <PWAInstallBanner />
+          <SocialProof />
+          <Toaster position="top-center" richColors closeButton />
+        </CartProvider>
+      </ThemeProvider>
     </QueryClientProvider>
   );
 }

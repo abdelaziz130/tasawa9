@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { Modal } from "./Modal";
 import { CountdownTimer } from "./CountdownTimer";
+import { ProductReviews } from "./ProductReviews";
+import { ShareButtons } from "./ShareButtons";
 import { formatDZD } from "@/lib/format";
 import type { Product } from "@/lib/types";
 import { useCart } from "@/lib/cart";
@@ -108,6 +110,10 @@ export function ProductDetailModal({
             </button>
           </div>
         </div>
+
+        <ShareButtons product={product} />
+
+        <ProductReviews productId={product.id} />
       </div>
 
       {/* Sticky action bar */}

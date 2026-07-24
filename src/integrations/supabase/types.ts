@@ -14,6 +14,81 @@ export type Database = {
   }
   public: {
     Tables: {
+      abandoned_carts: {
+        Row: {
+          cart_items: Json
+          commune: string | null
+          created_at: string
+          customer_name: string | null
+          id: string
+          phone: string | null
+          subtotal: number
+          updated_at: string
+          wilaya: string | null
+        }
+        Insert: {
+          cart_items?: Json
+          commune?: string | null
+          created_at?: string
+          customer_name?: string | null
+          id?: string
+          phone?: string | null
+          subtotal?: number
+          updated_at?: string
+          wilaya?: string | null
+        }
+        Update: {
+          cart_items?: Json
+          commune?: string | null
+          created_at?: string
+          customer_name?: string | null
+          id?: string
+          phone?: string | null
+          subtotal?: number
+          updated_at?: string
+          wilaya?: string | null
+        }
+        Relationships: []
+      }
+      coupons: {
+        Row: {
+          active: boolean
+          code: string
+          created_at: string
+          discount_type: string
+          discount_value: number
+          expires_at: string | null
+          id: string
+          min_order: number
+          times_used: number
+          usage_limit: number | null
+        }
+        Insert: {
+          active?: boolean
+          code: string
+          created_at?: string
+          discount_type?: string
+          discount_value?: number
+          expires_at?: string | null
+          id?: string
+          min_order?: number
+          times_used?: number
+          usage_limit?: number | null
+        }
+        Update: {
+          active?: boolean
+          code?: string
+          created_at?: string
+          discount_type?: string
+          discount_value?: number
+          expires_at?: string | null
+          id?: string
+          min_order?: number
+          times_used?: number
+          usage_limit?: number | null
+        }
+        Relationships: []
+      }
       orders: {
         Row: {
           cart_items: Json
@@ -91,6 +166,44 @@ export type Database = {
           title?: string
         }
         Relationships: []
+      }
+      reviews: {
+        Row: {
+          comment: string | null
+          created_at: string
+          customer_name: string
+          id: string
+          photo_url: string | null
+          product_id: string
+          rating: number
+        }
+        Insert: {
+          comment?: string | null
+          created_at?: string
+          customer_name: string
+          id?: string
+          photo_url?: string | null
+          product_id: string
+          rating?: number
+        }
+        Update: {
+          comment?: string | null
+          created_at?: string
+          customer_name?: string
+          id?: string
+          photo_url?: string | null
+          product_id?: string
+          rating?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reviews_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       wilayas_shipping: {
         Row: {

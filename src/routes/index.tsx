@@ -14,13 +14,13 @@ import { Loader2, PackageSearch, Sparkles, SlidersHorizontal } from "lucide-reac
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "متجر الجزائر — تسوق أونلاين مع الدفع عند الاستلام" },
+      { title: "تسوق | Tasawa9 — تسوق أونلاين مع الدفع عند الاستلام" },
       {
         name: "description",
         content: "متجر إلكتروني جزائري: تصفح المنتجات واطلب الدفع عند الاستلام مع توصيل لجميع 58 ولاية.",
       },
-      { property: "og:title", content: "متجر الجزائر" },
-      { property: "og:description", content: "تسوق أونلاين مع الدفع عند الاستلام." },
+      { property: "og:title", content: "تسوق | Tasawa9 — تسوق أونلاين مع الدفع عند الاستلام" },
+      { property: "og:description", content: "متجر إلكتروني جزائري: تصفح المنتجات واطلب الدفع عند الاستلام مع توصيل لجميع 58 ولاية." },
     ],
   }),
   component: HomePage,

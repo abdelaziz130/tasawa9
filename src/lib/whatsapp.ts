@@ -1,10 +1,15 @@
-export const WHATSAPP_NUMBER = "213782524124";
+import { DEFAULT_WHATSAPP } from "@/lib/settings";
 
-export function waLink(text: string) {
-  return `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(text)}`;
+export const WHATSAPP_NUMBER = DEFAULT_WHATSAPP;
+
+function normalize(n: string) {
+  return n.replace(/[^\d]/g, "").replace(/^0/, "213");
+}
+
+export function waLink(text: string, number?: string) {
+  return `https://wa.me/${normalize(number || WHATSAPP_NUMBER)}?text=${encodeURIComponent(text)}`;
 }
 
 export function customerWaLink(phone: string, text: string) {
-  const n = phone.replace(/[^\d]/g, "").replace(/^0/, "213");
-  return `https://wa.me/${n}?text=${encodeURIComponent(text)}`;
+  return `https://wa.me/${normalize(phone)}?text=${encodeURIComponent(text)}`;
 }

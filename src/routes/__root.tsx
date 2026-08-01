@@ -16,6 +16,8 @@ import { ThemeProvider } from "@/lib/theme";
 import { BottomNav } from "@/components/BottomNav";
 import { SocialProof } from "@/components/SocialProof";
 import { PWAInstallBanner } from "@/components/PWAInstallBanner";
+import { WhatsAppFab } from "@/components/WhatsAppFab";
+import { AIChatWidget } from "@/components/AIChatWidget";
 
 function NotFoundComponent() {
   return (
@@ -121,10 +123,12 @@ function RootComponent() {
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
         <CartProvider>
-          <div className="mx-auto max-w-md min-h-dvh bg-background pb-20">
+          <div className="mx-auto max-w-md lg:max-w-7xl min-h-dvh bg-background pb-20">
             <Outlet />
           </div>
           <BottomNav />
+          <WhatsAppFab />
+          <AIChatWidget />
           <PWAInstallBanner />
           <SocialProof />
           <Toaster position="top-center" richColors closeButton />

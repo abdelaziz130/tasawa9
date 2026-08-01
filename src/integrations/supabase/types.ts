@@ -98,6 +98,7 @@ export type Database = {
           delivery_type: string
           id: string
           phone: string
+          refusal_reason: string | null
           shipping_fee: number
           status: string
           total_price: number
@@ -111,6 +112,7 @@ export type Database = {
           delivery_type?: string
           id?: string
           phone: string
+          refusal_reason?: string | null
           shipping_fee?: number
           status?: string
           total_price?: number
@@ -124,6 +126,7 @@ export type Database = {
           delivery_type?: string
           id?: string
           phone?: string
+          refusal_reason?: string | null
           shipping_fee?: number
           status?: string
           total_price?: number
@@ -138,10 +141,16 @@ export type Database = {
           description: string | null
           id: string
           image_url: string | null
+          images: Json
+          landing_content: Json | null
+          landing_slug: string | null
+          offer_expires_at: string | null
           old_price: number | null
           price: number
           stock: number
+          tags: string[]
           title: string
+          video_url: string | null
         }
         Insert: {
           category?: string | null
@@ -149,10 +158,16 @@ export type Database = {
           description?: string | null
           id?: string
           image_url?: string | null
+          images?: Json
+          landing_content?: Json | null
+          landing_slug?: string | null
+          offer_expires_at?: string | null
           old_price?: number | null
           price?: number
           stock?: number
+          tags?: string[]
           title: string
+          video_url?: string | null
         }
         Update: {
           category?: string | null
@@ -160,10 +175,40 @@ export type Database = {
           description?: string | null
           id?: string
           image_url?: string | null
+          images?: Json
+          landing_content?: Json | null
+          landing_slug?: string | null
+          offer_expires_at?: string | null
           old_price?: number | null
           price?: number
           stock?: number
+          tags?: string[]
           title?: string
+          video_url?: string | null
+        }
+        Relationships: []
+      }
+      purchase_events: {
+        Row: {
+          created_at: string
+          first_name: string
+          id: string
+          product_title: string
+          wilaya: string
+        }
+        Insert: {
+          created_at?: string
+          first_name: string
+          id?: string
+          product_title: string
+          wilaya: string
+        }
+        Update: {
+          created_at?: string
+          first_name?: string
+          id?: string
+          product_title?: string
+          wilaya?: string
         }
         Relationships: []
       }
@@ -205,6 +250,60 @@ export type Database = {
           },
         ]
       }
+      store_settings: {
+        Row: {
+          chatbot_kb: string
+          created_at: string
+          default_theme: string
+          id: string
+          store_name: string
+          updated_at: string
+          whatsapp_number: string
+        }
+        Insert: {
+          chatbot_kb?: string
+          created_at?: string
+          default_theme?: string
+          id?: string
+          store_name?: string
+          updated_at?: string
+          whatsapp_number?: string
+        }
+        Update: {
+          chatbot_kb?: string
+          created_at?: string
+          default_theme?: string
+          id?: string
+          store_name?: string
+          updated_at?: string
+          whatsapp_number?: string
+        }
+        Relationships: []
+      }
+      user_roles: {
+        Row: {
+          created_at: string
+          email: string
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
       wilayas_shipping: {
         Row: {
           created_at: string
@@ -237,10 +336,18 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
       is_admin: { Args: never; Returns: boolean }
+      is_staff: { Args: never; Returns: boolean }
     }
     Enums: {
-      [_ in never]: never
+      app_role: "admin" | "sub_admin"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -367,6 +474,8 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: ["admin", "sub_admin"],
+    },
   },
 } as const

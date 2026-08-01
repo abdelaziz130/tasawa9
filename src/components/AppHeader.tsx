@@ -2,6 +2,9 @@ import { Link } from "@tanstack/react-router";
 import { Search, ShoppingBag } from "lucide-react";
 import { useCart } from "@/lib/cart";
 import { ThemeToggle } from "./ThemeToggle";
+import { SettingsMenu } from "./SettingsMenu";
+import { useStoreSettings } from "@/lib/settings";
+import logo from "@/assets/logo.png";
 
 export function AppHeader({
   search,
@@ -11,26 +14,35 @@ export function AppHeader({
   onSearch?: (v: string) => void;
 }) {
   const { count } = useCart();
+  const { data: settings } = useStoreSettings();
+
   return (
-    <header className="sticky top-0 z-30 glass-strong border-b border-white/5">
-      <div className="mx-auto max-w-md px-4 pt-4 pb-3">
-        <div className="flex items-center justify-between gap-3">
-          <Link to="/" className="flex items-center gap-2">
-            <div className="grid size-10 place-items-center rounded-2xl btn-primary">
-              <ShoppingBag className="size-5" />
-            </div>
-            <div className="leading-tight">
-              <div className="text-lg font-extrabold tracking-tight bg-gradient-to-l from-primary to-primary-glow bg-clip-text text-transparent">
-                متجر الجزائر
+    <header className="sticky top-0 z-30 glass-strong border-b border-border">
+      <div className="mx-auto max-w-md lg:max-w-7xl px-4 pt-4 pb-3">
+        <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
+          <Link to="/" className="flex min-w-0 items-center gap-2">
+            <img
+              src={logo}
+              alt="تسوق Tasawa9"
+              width={40}
+              height={40}
+              className="size-10 shrink-0 rounded-2xl object-cover ring-1 ring-primary/40"
+            />
+            <div className="min-w-0 leading-tight">
+              <div className="truncate text-lg font-extrabold tracking-tight bg-gradient-to-l from-primary to-primary-glow bg-clip-text text-transparent">
+                {settings?.store_name || "تسوق | Tasawa9"}
               </div>
-              <div className="text-[11px] text-muted-foreground">توصيل لجميع الولايات</div>
+              <div className="truncate text-[11px] text-muted-foreground">
+                توصيل لجميع الولايات
+              </div>
             </div>
           </Link>
-          <div className="flex items-center gap-1.5">
+          <div className="flex shrink-0 items-center gap-1.5">
             <ThemeToggle />
+            <SettingsMenu />
             <Link
               to="/cart"
-              className="relative grid size-10 place-items-center rounded-2xl glass hover:bg-white/10 transition"
+              className="relative grid size-10 place-items-center rounded-2xl glass hover:bg-primary/10 transition"
               aria-label="السلة"
             >
               <ShoppingBag className="size-5" />

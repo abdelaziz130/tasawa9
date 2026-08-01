@@ -188,6 +188,30 @@ export type Database = {
         }
         Relationships: []
       }
+      purchase_events: {
+        Row: {
+          created_at: string
+          first_name: string
+          id: string
+          product_title: string
+          wilaya: string
+        }
+        Insert: {
+          created_at?: string
+          first_name: string
+          id?: string
+          product_title: string
+          wilaya: string
+        }
+        Update: {
+          created_at?: string
+          first_name?: string
+          id?: string
+          product_title?: string
+          wilaya?: string
+        }
+        Relationships: []
+      }
       reviews: {
         Row: {
           comment: string | null

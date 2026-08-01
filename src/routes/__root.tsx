@@ -16,6 +16,8 @@ import { ThemeProvider } from "@/lib/theme";
 import { BottomNav } from "@/components/BottomNav";
 import { SocialProof } from "@/components/SocialProof";
 import { PWAInstallBanner } from "@/components/PWAInstallBanner";
+import { WhatsAppFab } from "@/components/WhatsAppFab";
+import { AIChatWidget } from "@/components/AIChatWidget";
 
 function NotFoundComponent() {
   return (

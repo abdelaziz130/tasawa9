@@ -1,14 +1,19 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
 import { formatDZD } from "@/lib/format";
-import type { CartItemLite, Order, Product } from "@/lib/types";
-import { ORDER_STATUSES } from "@/lib/types";
+import type { CartItemLite, Order, Product, StaffMember } from "@/lib/types";
+import { ORDER_STATUSES, productImages } from "@/lib/types";
 import { toast } from "sonner";
 import type { Session } from "@supabase/supabase-js";
 import { printInvoice } from "@/lib/invoice";
 import { customerWaLink } from "@/lib/whatsapp";
+import { ThemeToggle } from "@/components/ThemeToggle";
+import { SettingsMenu } from "@/components/SettingsMenu";
+import { generateProductCopy, generateLandingPage } from "@/lib/ai.functions";
+import { addStaff, removeStaff } from "@/lib/staff.functions";
 import {
   Package,
   ShoppingBag,
@@ -27,22 +32,40 @@ import {
   Printer,
   Ticket,
   ShoppingCart,
+  Users,
+  Settings,
+  Sparkles,
+  Wand2,
+  Check,
+  Ban,
+  ExternalLink,
 } from "lucide-react";
+
 
 const ADMIN_EMAIL = "chaib.aziz2004@gmail.com";
 
-type TabKey = "orders" | "products" | "coupons" | "abandoned";
+type TabKey = "orders" | "products" | "coupons" | "abandoned" | "staff" | "settings";
+type Role = "owner" | "admin" | "sub_admin";
 
 export const Route = createFileRoute("/admin")({
   head: () => ({
     meta: [
-      { title: "لوحة التحكم — متجر الجزائر" },
-      { name: "description", content: "إدارة المنتجات والطلبات." },
+      { title: "لوحة التحكم — تسوق Tasawa9" },
+      { name: "description", content: "إدارة المنتجات والطلبات والإعدادات." },
       { name: "robots", content: "noindex, nofollow" },
     ],
   }),
   component: AdminPage,
 });
+
+const TABS: { key: TabKey; label: string; icon: React.ReactNode; ownerOnly?: boolean }[] = [
+  { key: "orders", label: "الطلبات", icon: <ShoppingBag className="size-4" /> },
+  { key: "products", label: "المنتجات", icon: <Package className="size-4" /> },
+  { key: "coupons", label: "الأكواد", icon: <Ticket className="size-4" />, ownerOnly: true },
+  { key: "abandoned", label: "متروكة", icon: <ShoppingCart className="size-4" /> },
+  { key: "staff", label: "الموظفون", icon: <Users className="size-4" />, ownerOnly: true },
+  { key: "settings", label: "الإعدادات", icon: <Settings className="size-4" />, ownerOnly: true },
+];
 
 function AdminPage() {
   const [session, setSession] = useState<Session | null>(null);
@@ -66,7 +89,23 @@ function AdminPage() {
     };
   }, []);
 
-  if (!ready) {
+  const email = session?.user?.email?.toLowerCase() ?? null;
+  const isOwner = email === ADMIN_EMAIL;
+  const { data: roleRow, isLoading: roleLoading } = useQuery({
+    queryKey: ["my-role", session?.user?.id],
+    enabled: !!session?.user?.id && !isOwner,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", session!.user.id)
+        .maybeSingle();
+      if (error) throw error;
+      return (data?.role ?? null) as "admin" | "sub_admin" | null;
+    },
+  });
+
+  if (!ready || (session && !isOwner && roleLoading)) {
     return (
       <main className="min-h-dvh grid place-items-center">
         <Loader2 className="size-6 animate-spin text-muted-foreground" />
@@ -74,20 +113,34 @@ function AdminPage() {
     );
   }
 
-  const isAdmin = session?.user?.email?.toLowerCase() === ADMIN_EMAIL;
-  if (!session || !isAdmin) return <AdminLogin loggedIn={!!session} />;
+  const role: Role | null = isOwner ? "owner" : roleRow ?? null;
+  if (!session || !role) return <AdminLogin loggedIn={!!session} />;
+
+  const visibleTabs = TABS.filter((t) => !t.ownerOnly || role === "owner" || role === "admin");
+  const activeTab = visibleTabs.some((t) => t.key === tab) ? tab : "orders";
 
   return (
-    <main className="min-h-dvh px-3 py-4 space-y-4 max-w-md mx-auto">
-      <div className="flex items-center justify-between">
+    <main className="min-h-dvh mx-auto max-w-md lg:max-w-6xl px-3 py-4">
+      <div className="mb-4 flex items-center justify-between">
         <div>
           <h1 className="text-xl font-extrabold">لوحة التحكم</h1>
-          <div className="text-xs text-muted-foreground">{session.user.email}</div>
+          <div className="text-xs text-muted-foreground">
+            {session.user.email} • {role === "sub_admin" ? "مساعد" : "مدير"}
+          </div>
         </div>
         <div className="flex items-center gap-1">
+          <ThemeToggle />
+          <SettingsMenu
+            adminMode={role !== "sub_admin"}
+            onSetDefaultTheme={async (id) => {
+              const { data: row } = await supabase.from("store_settings").select("id").limit(1).maybeSingle();
+              if (row?.id) await supabase.from("store_settings").update({ default_theme: id }).eq("id", row.id);
+              else await supabase.from("store_settings").insert({ default_theme: id });
+            }}
+          />
           <button
             onClick={() => navigate({ to: "/" })}
-            className="size-9 grid place-items-center rounded-xl glass hover:bg-white/10"
+            className="size-10 grid place-items-center rounded-2xl glass hover:bg-primary/10"
             aria-label="الرئيسية"
           >
             <Home className="size-4" />
@@ -97,7 +150,7 @@ function AdminPage() {
               await supabase.auth.signOut();
               toast.success("تم تسجيل الخروج");
             }}
-            className="h-9 px-3 rounded-xl glass text-sm font-bold flex items-center gap-1"
+            className="h-10 px-3 rounded-2xl glass text-sm font-bold flex items-center gap-1"
           >
             <LogOut className="size-4" /> خروج
           </button>
@@ -106,28 +159,29 @@ function AdminPage() {
 
       <StatsCards />
 
-      <div className="grid grid-cols-4 gap-1 rounded-2xl glass p-1">
-        <TabBtn active={tab === "orders"} onClick={() => setTab("orders")}>
-          الطلبات
-        </TabBtn>
-        <TabBtn active={tab === "products"} onClick={() => setTab("products")}>
-          المنتجات
-        </TabBtn>
-        <TabBtn active={tab === "coupons"} onClick={() => setTab("coupons")}>
-          الأكواد
-        </TabBtn>
-        <TabBtn active={tab === "abandoned"} onClick={() => setTab("abandoned")}>
-          متروكة
-        </TabBtn>
-      </div>
+      <div className="mt-4 lg:grid lg:grid-cols-[220px_minmax(0,1fr)] lg:gap-5">
+        <nav className="grid grid-cols-4 gap-1 rounded-2xl glass p-1 lg:sticky lg:top-4 lg:h-fit lg:grid-cols-1 lg:gap-1.5 lg:p-2">
+          {visibleTabs.map((t) => (
+            <TabBtn key={t.key} active={activeTab === t.key} onClick={() => setTab(t.key)}>
+              <span className="hidden lg:inline-flex">{t.icon}</span>
+              {t.label}
+            </TabBtn>
+          ))}
+        </nav>
 
-      {tab === "orders" && <OrdersPanel />}
-      {tab === "products" && <ProductsPanel />}
-      {tab === "coupons" && <CouponsPanel />}
-      {tab === "abandoned" && <AbandonedPanel />}
+        <div className="mt-3 lg:mt-0">
+          {activeTab === "orders" && <OrdersPanel />}
+          {activeTab === "products" && <ProductsPanel role={role} />}
+          {activeTab === "coupons" && <CouponsPanel />}
+          {activeTab === "abandoned" && <AbandonedPanel />}
+          {activeTab === "staff" && <StaffPanel />}
+          {activeTab === "settings" && <SettingsPanel />}
+        </div>
+      </div>
     </main>
   );
 }
+
 
 function TabBtn({
   active,
@@ -311,6 +365,36 @@ function OrdersPanel() {
     toast.success("تم التحديث");
     qc.invalidateQueries({ queryKey: ["orders"] });
   };
+
+  /** Accepting an order confirms it AND publishes the real social-proof event. */
+  const accept = async (o: Order) => {
+    const { error } = await supabase.from("orders").update({ status: "مؤكد" }).eq("id", o.id);
+    if (error) return toast.error(error.message);
+    const items = (o.cart_items ?? []) as CartItemLite[];
+    const title = items[0]?.title;
+    if (title) {
+      const { error: evErr } = await supabase.from("purchase_events").insert({
+        first_name: o.customer_name.trim().split(/\s+/)[0] ?? o.customer_name,
+        wilaya: o.wilaya,
+        product_title: title,
+      });
+      if (evErr) toast.error("تم القبول لكن تعذّر نشر الإشعار");
+    }
+    toast.success("تم قبول الطلب");
+    qc.invalidateQueries({ queryKey: ["orders"] });
+    qc.invalidateQueries({ queryKey: ["purchase-events"] });
+  };
+
+  const refuse = async (o: Order, reason: string) => {
+    const { error } = await supabase
+      .from("orders")
+      .update({ status: "مرفوض", refusal_reason: reason })
+      .eq("id", o.id);
+    if (error) return toast.error(error.message);
+    toast.success("تم رفض الطلب");
+    qc.invalidateQueries({ queryKey: ["orders"] });
+  };
+
   const del = async (id: string) => {
     if (!confirm("حذف هذا الطلب؟")) return;
     const { error } = await supabase.from("orders").delete().eq("id", id);
@@ -318,6 +402,7 @@ function OrdersPanel() {
     toast.success("تم الحذف");
     qc.invalidateQueries({ queryKey: ["orders"] });
   };
+
 
   return (
     <div className="space-y-3">
@@ -342,11 +427,19 @@ function OrdersPanel() {
       ) : filtered.length === 0 ? (
         <div className="py-10 text-center text-muted-foreground">لا توجد طلبات</div>
       ) : (
-        <ul className="space-y-2">
+        <ul className="space-y-2 lg:grid lg:grid-cols-2 lg:gap-3 lg:space-y-0">
           {filtered.map((o) => (
-            <OrderCard key={o.id} order={o} onStatus={updateStatus} onDelete={del} />
+            <OrderCard
+              key={o.id}
+              order={o}
+              onStatus={updateStatus}
+              onDelete={del}
+              onAccept={accept}
+              onRefuse={refuse}
+            />
           ))}
         </ul>
+
       )}
     </div>
   );
@@ -356,15 +449,23 @@ function OrderCard({
   order,
   onStatus,
   onDelete,
+  onAccept,
+  onRefuse,
 }: {
   order: Order;
   onStatus: (id: string, status: string) => void;
   onDelete: (id: string) => void;
+  onAccept: (o: Order) => unknown;
+  onRefuse: (o: Order, reason: string) => unknown;
+
 }) {
   const items = (order.cart_items ?? []) as CartItemLite[];
   const waNumber = order.phone.replace(/[^\d]/g, "").replace(/^0/, "213");
   const shipping = Number(order.shipping_fee ?? 0);
   const subtotal = Number(order.total_price) - shipping;
+  const [refusing, setRefusing] = useState(false);
+  const [reason, setReason] = useState("");
+
   return (
     <li className="rounded-2xl glass p-3 space-y-2">
       <div className="flex items-start justify-between gap-2">
@@ -406,6 +507,60 @@ function OrderCard({
       <div className="text-[10px] text-muted-foreground">
         {new Date(order.created_at).toLocaleString("ar-DZ")}
       </div>
+      {order.refusal_reason && (
+        <div className="rounded-xl bg-destructive/10 px-2.5 py-1.5 text-[11px] font-semibold text-destructive">
+          سبب الرفض: {order.refusal_reason}
+        </div>
+      )}
+
+      {order.status === "جديد" && (
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            onClick={() => onAccept(order)}
+            className="h-9 rounded-xl bg-success/20 text-success text-xs font-extrabold flex items-center justify-center gap-1"
+          >
+            <Check className="size-3.5" /> قبول الطلب
+          </button>
+          <button
+            onClick={() => setRefusing(true)}
+            className="h-9 rounded-xl bg-destructive/15 text-destructive text-xs font-extrabold flex items-center justify-center gap-1"
+          >
+            <Ban className="size-3.5" /> رفض الطلب
+          </button>
+        </div>
+      )}
+
+      {refusing && (
+        <div className="space-y-2 rounded-xl glass p-2.5">
+          <textarea
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            rows={2}
+            placeholder="سبب الرفض (إلزامي)"
+            className="w-full rounded-lg border border-border bg-input p-2 text-xs outline-none"
+          />
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              onClick={() => {
+                if (!reason.trim()) return toast.error("سبب الرفض إلزامي");
+                onRefuse(order, reason.trim());
+                setRefusing(false);
+                setReason("");
+              }}
+              className="h-8 rounded-lg bg-destructive text-destructive-foreground text-xs font-extrabold"
+            >
+              تأكيد الرفض
+            </button>
+            <button
+              onClick={() => setRefusing(false)}
+              className="h-8 rounded-lg glass text-xs font-bold"
+            >
+              إلغاء
+            </button>
+          </div>
+        </div>
+      )}
+
 
       <div className="grid grid-cols-3 gap-2">
         <a
@@ -468,10 +623,12 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
-function ProductsPanel() {
+function ProductsPanel({ role }: { role: Role }) {
   const qc = useQueryClient();
   const [editing, setEditing] = useState<Product | null>(null);
   const [formOpen, setFormOpen] = useState(false);
+  const [landingBusy, setLandingBusy] = useState<string | null>(null);
+  const makeLanding = useServerFn(generateLandingPage);
   const { data, isLoading } = useQuery({
     queryKey: ["products"],
     queryFn: async () => {
@@ -490,6 +647,20 @@ function ProductsPanel() {
     if (error) return toast.error(error.message);
     toast.success("تم الحذف");
     qc.invalidateQueries({ queryKey: ["products"] });
+  };
+
+  const buildLanding = async (p: Product) => {
+    setLandingBusy(p.id);
+    try {
+      const res = await makeLanding({ data: { productId: p.id } });
+      toast.success("تم إنشاء صفحة الهبوط");
+      qc.invalidateQueries({ queryKey: ["products"] });
+      window.open(`/p/${res.slug}`, "_blank");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "تعذّر الإنشاء");
+    } finally {
+      setLandingBusy(null);
+    }
   };
 
   return (
@@ -511,44 +682,89 @@ function ProductsPanel() {
       ) : (data ?? []).length === 0 ? (
         <div className="py-10 text-center text-muted-foreground">لا توجد منتجات</div>
       ) : (
-        <ul className="space-y-2">
-          {(data ?? []).map((p) => (
-            <li key={p.id} className="rounded-2xl glass p-2.5 flex gap-3">
-              <div className="size-16 rounded-xl bg-muted overflow-hidden shrink-0">
-                {p.image_url ? (
-                  <img src={p.image_url} alt={p.title} className="size-full object-cover" />
-                ) : null}
-              </div>
-              <div className="flex-1 min-w-0">
-                <h3 className="font-semibold text-sm line-clamp-1">{p.title}</h3>
-                <div className="text-xs text-muted-foreground">
-                  {p.category ?? "—"} • مخزون: {p.stock}
+        <ul className="space-y-2 lg:grid lg:grid-cols-2 lg:gap-3 lg:space-y-0">
+          {(data ?? []).map((p) => {
+            const thumb = productImages(p)[0];
+            return (
+              <li key={p.id} className="rounded-2xl glass p-2.5 space-y-2">
+                <div className="flex gap-3">
+                  <div className="size-16 rounded-xl bg-muted overflow-hidden shrink-0">
+                    {thumb ? (
+                      <img src={thumb} alt={p.title} className="size-full object-cover" />
+                    ) : null}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h3 className="font-semibold text-sm line-clamp-1">{p.title}</h3>
+                    <div className="text-xs text-muted-foreground">
+                      {p.category ?? "—"} • مخزون: {p.stock}
+                    </div>
+                    <div className="mt-0.5 flex items-center gap-2">
+                      <span className="font-extrabold text-primary text-sm">
+                        {formatDZD(p.price)}
+                      </span>
+                      {p.stock <= 0 && (
+                        <span className="rounded-full bg-destructive/15 px-2 py-0.5 text-[10px] font-extrabold text-destructive">
+                          مخفي — نفد المخزون
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <button
+                      onClick={() => {
+                        setEditing(p);
+                        setFormOpen(true);
+                      }}
+                      className="size-8 grid place-items-center rounded-lg glass"
+                      aria-label="تعديل"
+                    >
+                      <Edit3 className="size-4" />
+                    </button>
+                    <button
+                      onClick={() => del(p.id)}
+                      className="size-8 grid place-items-center rounded-lg bg-destructive/10 text-destructive hover:bg-destructive/20"
+                      aria-label="حذف"
+                    >
+                      <Trash2 className="size-4" />
+                    </button>
+                  </div>
                 </div>
-                <div className="font-extrabold text-primary text-sm mt-0.5">
-                  {formatDZD(p.price)}
-                </div>
-              </div>
-              <div className="flex flex-col gap-1">
-                <button
-                  onClick={() => {
-                    setEditing(p);
-                    setFormOpen(true);
-                  }}
-                  className="size-8 grid place-items-center rounded-lg glass"
-                >
-                  <Edit3 className="size-4" />
-                </button>
-                <button
-                  onClick={() => del(p.id)}
-                  className="size-8 grid place-items-center rounded-lg bg-destructive/10 text-destructive hover:bg-destructive/20"
-                >
-                  <Trash2 className="size-4" />
-                </button>
-              </div>
-            </li>
-          ))}
+                {role !== "sub_admin" && (
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      onClick={() => buildLanding(p)}
+                      disabled={landingBusy === p.id}
+                      className="h-8 rounded-lg bg-primary/15 text-primary text-[11px] font-extrabold flex items-center justify-center gap-1 disabled:opacity-60"
+                    >
+                      {landingBusy === p.id ? (
+                        <Loader2 className="size-3.5 animate-spin" />
+                      ) : (
+                        <Wand2 className="size-3.5" />
+                      )}
+                      صفحة هبوط AI
+                    </button>
+                    {p.landing_slug ? (
+                      <a
+                        href={`/p/${p.landing_slug}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="h-8 rounded-lg glass text-[11px] font-bold flex items-center justify-center gap-1"
+                      >
+                        <ExternalLink className="size-3.5" /> عرض الصفحة
+                      </a>
+                    ) : (
+                      <span className="h-8 rounded-lg glass text-[11px] text-muted-foreground flex items-center justify-center">
+                        لا توجد صفحة
+                      </span>
+                    )}
+                  </div>
+                )}
+              </li>
+            );
+          })}
         </ul>
       )}
+
 
       {formOpen && (
         <ProductForm
@@ -843,6 +1059,13 @@ function AbandonedPanel() {
   );
 }
 
+function toLocalInput(iso: string | null) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
 function ProductForm({
   product,
   onClose,
@@ -858,29 +1081,60 @@ function ProductForm({
   const [oldPrice, setOldPrice] = useState(product?.old_price ? String(product.old_price) : "");
   const [category, setCategory] = useState(product?.category ?? "");
   const [stock, setStock] = useState(product?.stock != null ? String(product.stock) : "0");
-  const [imageUrl, setImageUrl] = useState(product?.image_url ?? "");
+  const [images, setImages] = useState<string[]>(product ? productImages(product) : []);
+  const [videoUrl, setVideoUrl] = useState(product?.video_url ?? "");
+  const [tags, setTags] = useState<string[]>(product?.tags ?? []);
+  const [offerAt, setOfferAt] = useState(toLocalInput(product?.offer_expires_at ?? null));
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [aiBusy, setAiBusy] = useState(false);
+  const writeCopy = useServerFn(generateProductCopy);
 
-  const upload = async (file: File) => {
+  const upload = async (files: FileList) => {
     setUploading(true);
-    const ext = file.name.split(".").pop() ?? "jpg";
-    const path = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
-    const { error: upErr } = await supabase.storage
-      .from("product-images")
-      .upload(path, file, { cacheControl: "3600", upsert: false });
-    if (upErr) {
-      setUploading(false);
-      toast.error("فشل الرفع: " + upErr.message);
-      return;
+    const urls: string[] = [];
+    for (const file of Array.from(files)) {
+      const ext = file.name.split(".").pop() ?? "jpg";
+      const path = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+      const { error: upErr } = await supabase.storage
+        .from("product-images")
+        .upload(path, file, { cacheControl: "3600", upsert: false });
+      if (upErr) {
+        toast.error("فشل الرفع: " + upErr.message);
+        continue;
+      }
+      const { data } = await supabase.storage
+        .from("product-images")
+        .createSignedUrl(path, 60 * 60 * 24 * 365 * 5);
+      if (data?.signedUrl) urls.push(data.signedUrl);
     }
-    const { data, error } = await supabase.storage
-      .from("product-images")
-      .createSignedUrl(path, 60 * 60 * 24 * 365 * 5);
     setUploading(false);
-    if (error || !data) return toast.error("تعذّر إنشاء الرابط");
-    setImageUrl(data.signedUrl);
-    toast.success("تم رفع الصورة");
+    if (urls.length) {
+      setImages((prev) => [...prev, ...urls]);
+      toast.success(`تم رفع ${urls.length} صورة`);
+    }
+  };
+
+  const runAi = async () => {
+    if (!title.trim()) return toast.error("اكتب عنوان المنتج أولاً");
+    setAiBusy(true);
+    try {
+      const res = await writeCopy({
+        data: {
+          title: title.trim(),
+          category: category.trim() || null,
+          price: price ? Number(price) : null,
+        },
+      });
+      if (res.description) setDescription(res.description);
+      if (res.tags.length) setTags(res.tags);
+      if (!category.trim() && res.category) setCategory(res.category);
+      toast.success("تم توليد الوصف والوسوم");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "تعذّر التوليد");
+    } finally {
+      setAiBusy(false);
+    }
   };
 
   const save = async (e: React.FormEvent) => {
@@ -894,7 +1148,11 @@ function ProductForm({
       old_price: oldPrice ? Number(oldPrice) : null,
       category: category.trim() || null,
       stock: Number(stock) || 0,
-      image_url: imageUrl || null,
+      image_url: images[0] ?? null,
+      images: images.slice(1),
+      video_url: videoUrl.trim() || null,
+      tags,
+      offer_expires_at: offerAt ? new Date(offerAt).toISOString() : null,
     };
     const q = product
       ? supabase.from("products").update(payload).eq("id", product.id)
@@ -909,40 +1167,56 @@ function ProductForm({
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/70 backdrop-blur-md">
       <div className="w-full max-w-md glass-strong rounded-t-3xl sm:rounded-3xl max-h-[92dvh] overflow-hidden flex flex-col">
-        <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-border">
           <h2 className="font-bold text-lg">{product ? "تعديل منتج" : "إضافة منتج"}</h2>
           <button
             onClick={onClose}
-            className="grid place-items-center size-9 rounded-full hover:bg-white/10"
+            className="grid place-items-center size-9 rounded-full hover:bg-primary/10"
           >
             <X className="size-5" />
           </button>
         </div>
         <form onSubmit={save} className="p-4 space-y-3 overflow-y-auto">
-          <label className="block space-y-1.5">
-            <span className="text-sm font-semibold">الصورة</span>
-            <div className="flex items-center gap-3">
-              <div className="size-20 rounded-xl bg-muted overflow-hidden grid place-items-center">
-                {imageUrl ? (
-                  <img src={imageUrl} alt="" className="size-full object-cover" />
+          <div className="space-y-2">
+            <span className="text-sm font-semibold">الصور (يمكن اختيار عدة صور)</span>
+            <div className="flex flex-wrap gap-2">
+              {images.map((src, idx) => (
+                <div key={src} className="relative size-20 overflow-hidden rounded-xl bg-muted">
+                  <img src={src} alt="" className="size-full object-cover" />
+                  {idx === 0 && (
+                    <span className="absolute bottom-0 inset-x-0 bg-black/60 text-center text-[9px] font-bold text-white">
+                      رئيسية
+                    </span>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setImages((p) => p.filter((s) => s !== src))}
+                    className="absolute top-1 left-1 grid size-5 place-items-center rounded-full bg-destructive text-destructive-foreground"
+                    aria-label="حذف الصورة"
+                  >
+                    <X className="size-3" />
+                  </button>
+                </div>
+              ))}
+              <label className="grid size-20 cursor-pointer place-items-center rounded-xl border-2 border-dashed border-border text-muted-foreground hover:bg-primary/5">
+                {uploading ? (
+                  <Loader2 className="size-5 animate-spin" />
                 ) : (
-                  <ImagePlus className="size-6 text-muted-foreground" />
+                  <ImagePlus className="size-5" />
                 )}
-              </div>
-              <label className="flex-1 h-11 rounded-xl border-2 border-dashed border-white/20 grid place-items-center text-sm text-muted-foreground cursor-pointer hover:bg-white/5">
-                {uploading ? "جارٍ الرفع..." : "اختر صورة"}
                 <input
                   type="file"
                   accept="image/*"
+                  multiple
                   className="hidden"
                   onChange={(e) => {
-                    const f = e.target.files?.[0];
-                    if (f) upload(f);
+                    const f = e.target.files;
+                    if (f && f.length) upload(f);
                   }}
                 />
               </label>
             </div>
-          </label>
+          </div>
 
           <Fld label="العنوان">
             <input
@@ -952,14 +1226,41 @@ function ProductForm({
               required
             />
           </Fld>
+
+          <button
+            type="button"
+            onClick={runAi}
+            disabled={aiBusy}
+            className="w-full h-10 rounded-xl bg-primary/15 text-primary text-sm font-extrabold flex items-center justify-center gap-2 disabled:opacity-60"
+          >
+            {aiBusy ? <Loader2 className="size-4 animate-spin" /> : <Sparkles className="size-4" />}
+            توليد وصف بالذكاء الاصطناعي
+          </button>
+
           <Fld label="الوصف">
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              rows={3}
-              className="ainp min-h-[80px] py-2"
+              rows={4}
+              className="ainp min-h-[100px] py-2"
             />
           </Fld>
+
+          {tags.length > 0 && (
+            <div className="flex flex-wrap gap-1.5">
+              {tags.map((t) => (
+                <button
+                  key={t}
+                  type="button"
+                  onClick={() => setTags((p) => p.filter((x) => x !== t))}
+                  className="rounded-full glass px-2.5 py-1 text-[11px] font-bold"
+                >
+                  {t} ✕
+                </button>
+              ))}
+            </div>
+          )}
+
           <div className="grid grid-cols-2 gap-3">
             <Fld label="السعر (دج)">
               <input
@@ -1000,6 +1301,25 @@ function ProductForm({
             </Fld>
           </div>
 
+          <Fld label="رابط فيديو ترويجي (YouTube / Shorts)">
+            <input
+              value={videoUrl}
+              onChange={(e) => setVideoUrl(e.target.value)}
+              placeholder="https://youtube.com/shorts/..."
+              className="ainp"
+              dir="ltr"
+            />
+          </Fld>
+
+          <Fld label="تاريخ انتهاء العرض (اختياري)">
+            <input
+              value={offerAt}
+              onChange={(e) => setOfferAt(e.target.value)}
+              type="datetime-local"
+              className="ainp"
+            />
+          </Fld>
+
           <button
             disabled={saving || uploading}
             className="w-full h-12 rounded-xl btn-primary font-extrabold disabled:opacity-60"
@@ -1012,6 +1332,249 @@ function ProductForm({
     </div>
   );
 }
+
+function StaffPanel() {
+  const qc = useQueryClient();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [role, setRole] = useState<"sub_admin" | "admin">("sub_admin");
+  const [busy, setBusy] = useState(false);
+  const create = useServerFn(addStaff);
+  const drop = useServerFn(removeStaff);
+
+  const { data, isLoading } = useQuery({
+    queryKey: ["staff"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("user_roles")
+        .select("*")
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return (data ?? []) as StaffMember[];
+    },
+  });
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setBusy(true);
+    try {
+      await create({ data: { email: email.trim(), password, role } });
+      toast.success("تم إضافة الموظف");
+      setEmail("");
+      setPassword("");
+      qc.invalidateQueries({ queryKey: ["staff"] });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "تعذّر الإضافة");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const remove = async (id: string) => {
+    if (!confirm("إلغاء صلاحيات هذا الموظف؟")) return;
+    try {
+      await drop({ data: { id } });
+      toast.success("تم الإلغاء");
+      qc.invalidateQueries({ queryKey: ["staff"] });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "تعذّر الإلغاء");
+    }
+  };
+
+  return (
+    <div className="space-y-3">
+      <form onSubmit={submit} className="rounded-2xl glass p-3 space-y-2">
+        <div className="flex items-center gap-1.5 text-sm font-extrabold">
+          <Users className="size-4 text-primary" /> إضافة موظف / مساعد
+        </div>
+        <input
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          type="email"
+          placeholder="البريد الإلكتروني"
+          className="sinp"
+          required
+        />
+        <input
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          type="text"
+          placeholder="كلمة المرور (6 أحرف على الأقل)"
+          className="sinp"
+          required
+        />
+        <select
+          value={role}
+          onChange={(e) => setRole(e.target.value as "sub_admin" | "admin")}
+          className="sinp"
+        >
+          <option value="sub_admin">مساعد (الطلبات والمنتجات فقط)</option>
+          <option value="admin">مدير (كل الصلاحيات)</option>
+        </select>
+        <button
+          disabled={busy}
+          className="w-full h-10 rounded-xl btn-primary text-sm font-extrabold disabled:opacity-60"
+        >
+          {busy ? "..." : "إضافة"}
+        </button>
+        <style>{`.sinp{width:100%;height:42px;border-radius:12px;border:1px solid var(--border);padding:0 12px;font-size:14px;background:var(--input);color:var(--foreground);outline:none}.sinp:focus{border-color:var(--primary)}`}</style>
+      </form>
+
+      {isLoading ? (
+        <div className="py-6 grid place-items-center">
+          <Loader2 className="size-5 animate-spin text-muted-foreground" />
+        </div>
+      ) : (data ?? []).length === 0 ? (
+        <div className="py-6 text-center text-sm text-muted-foreground">لا يوجد موظفون</div>
+      ) : (
+        <ul className="space-y-2">
+          {(data ?? []).map((s) => (
+            <li key={s.id} className="flex items-center gap-2 rounded-2xl glass p-3">
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-sm font-bold" dir="ltr">
+                  {s.email}
+                </div>
+                <div className="text-[11px] text-muted-foreground">
+                  {s.role === "admin" ? "مدير" : "مساعد"}
+                </div>
+              </div>
+              <button
+                onClick={() => remove(s.id)}
+                className="size-9 grid place-items-center rounded-xl bg-destructive/10 text-destructive"
+                aria-label="إلغاء الصلاحيات"
+              >
+                <Trash2 className="size-4" />
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+function SettingsPanel() {
+  const qc = useQueryClient();
+  const [storeName, setStoreName] = useState("");
+  const [whatsapp, setWhatsapp] = useState("");
+  const [kb, setKb] = useState("");
+  const [loaded, setLoaded] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [newEmail, setNewEmail] = useState("");
+  const [newPass, setNewPass] = useState("");
+
+  const { data } = useQuery({
+    queryKey: ["store-settings-admin"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("store_settings").select("*").limit(1).maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  useEffect(() => {
+    if (data && !loaded) {
+      setStoreName(String(data.store_name ?? ""));
+      setWhatsapp(String(data.whatsapp_number ?? ""));
+      setKb(String(data.chatbot_kb ?? ""));
+      setLoaded(true);
+    }
+  }, [data, loaded]);
+
+  const save = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setBusy(true);
+    const payload = {
+      store_name: storeName.trim() || "تسوق | Tasawa9",
+      whatsapp_number: whatsapp.replace(/[^\d]/g, "") || "213782524124",
+      chatbot_kb: kb,
+    };
+    const { error } = data?.id
+      ? await supabase.from("store_settings").update(payload).eq("id", data.id)
+      : await supabase.from("store_settings").insert(payload);
+    setBusy(false);
+    if (error) return toast.error(error.message);
+    toast.success("تم حفظ الإعدادات");
+    qc.invalidateQueries({ queryKey: ["store-settings"] });
+    qc.invalidateQueries({ queryKey: ["store-settings-admin"] });
+  };
+
+  const saveAccount = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const payload: { email?: string; password?: string } = {};
+    if (newEmail.trim()) payload.email = newEmail.trim();
+    if (newPass) payload.password = newPass;
+    if (!payload.email && !payload.password) return toast.error("أدخل بريداً أو كلمة مرور جديدة");
+    const { error } = await supabase.auth.updateUser(payload);
+    if (error) return toast.error(error.message);
+    setNewEmail("");
+    setNewPass("");
+    toast.success("تم تحديث بيانات الحساب");
+  };
+
+  return (
+    <div className="space-y-3">
+      <form onSubmit={save} className="rounded-2xl glass p-3 space-y-2">
+        <div className="flex items-center gap-1.5 text-sm font-extrabold">
+          <Settings className="size-4 text-primary" /> إعدادات المتجر
+        </div>
+        <Fld label="اسم المتجر">
+          <input value={storeName} onChange={(e) => setStoreName(e.target.value)} className="sinp" />
+        </Fld>
+        <Fld label="رقم واتساب الدعم">
+          <input
+            value={whatsapp}
+            onChange={(e) => setWhatsapp(e.target.value)}
+            className="sinp"
+            dir="ltr"
+            placeholder="213782524124"
+          />
+        </Fld>
+        <Fld label="معلومات المساعد الذكي (يستعملها الشات بوت)">
+          <textarea
+            value={kb}
+            onChange={(e) => setKb(e.target.value)}
+            rows={5}
+            className="sinp min-h-[110px] py-2"
+          />
+        </Fld>
+        <button
+          disabled={busy}
+          className="w-full h-11 rounded-xl btn-primary font-extrabold disabled:opacity-60"
+        >
+          {busy ? "..." : "حفظ الإعدادات"}
+        </button>
+      </form>
+
+      <form onSubmit={saveAccount} className="rounded-2xl glass p-3 space-y-2">
+        <div className="flex items-center gap-1.5 text-sm font-extrabold">
+          <Lock className="size-4 text-primary" /> حساب المدير
+        </div>
+        <Fld label="بريد إلكتروني جديد">
+          <input
+            value={newEmail}
+            onChange={(e) => setNewEmail(e.target.value)}
+            type="email"
+            className="sinp"
+            dir="ltr"
+          />
+        </Fld>
+        <Fld label="كلمة مرور جديدة">
+          <input
+            value={newPass}
+            onChange={(e) => setNewPass(e.target.value)}
+            type="password"
+            className="sinp"
+            dir="ltr"
+          />
+        </Fld>
+        <button className="w-full h-11 rounded-xl glass font-extrabold">تحديث الحساب</button>
+        <style>{`.sinp{width:100%;height:42px;border-radius:12px;border:1px solid var(--border);padding:0 12px;font-size:14px;background:var(--input);color:var(--foreground);outline:none}.sinp:focus{border-color:var(--primary)}`}</style>
+      </form>
+    </div>
+  );
+}
+
 
 function Fld({ label, children }: { label: string; children: React.ReactNode }) {
   return (

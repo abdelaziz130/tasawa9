@@ -6,10 +6,12 @@ import { ProductCard } from "@/components/ProductCard";
 import { ProductDetailModal } from "@/components/ProductDetailModal";
 import { CheckoutModal } from "@/components/CheckoutModal";
 import { StoriesBanner } from "@/components/StoriesBanner";
+import { FlashDeals } from "@/components/FlashDeals";
 import { WhatsAppFab } from "@/components/WhatsAppFab";
 import { supabase } from "@/integrations/supabase/client";
-import type { Product } from "@/lib/types";
+import { isVisibleInStore, type Product } from "@/lib/types";
 import { Loader2, PackageSearch, Sparkles, SlidersHorizontal } from "lucide-react";
+
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -47,7 +49,10 @@ function HomePage() {
     },
   });
 
+  const inStock = useMemo(() => (data ?? []).filter(isVisibleInStore), [data]);
+
   const categories = useMemo(() => {
+
     const set = new Set<string>();
     (data ?? []).forEach((p) => p.category && set.add(p.category));
     return Array.from(set);
@@ -61,16 +66,19 @@ function HomePage() {
     if (!data) return [];
     const q = search.trim().toLowerCase();
     return data.filter((p) => {
+      if (!isVisibleInStore(p)) return false;
       if (category && p.category !== category) return false;
       if (maxPrice != null && Number(p.price) > maxPrice) return false;
       if (!q) return true;
       return (
         p.title.toLowerCase().includes(q) ||
         (p.category ?? "").toLowerCase().includes(q) ||
+        (p.tags ?? []).some((t) => t.toLowerCase().includes(q)) ||
         (p.description ?? "").toLowerCase().includes(q)
       );
     });
   }, [data, search, category, maxPrice]);
+
 
   const openProduct = (p: Product) => {
     setSelected(p);
@@ -98,7 +106,10 @@ function HomePage() {
           </div>
         </div>
 
-        <StoriesBanner products={data ?? []} onOpen={openProduct} />
+        <StoriesBanner products={inStock} onOpen={openProduct} />
+
+        <FlashDeals products={inStock} onOpen={openProduct} />
+
 
         {/* Filters */}
         <div className="mb-3 flex items-center gap-2">

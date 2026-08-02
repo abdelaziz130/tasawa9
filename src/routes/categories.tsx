@@ -7,7 +7,7 @@ import { ProductDetailModal } from "@/components/ProductDetailModal";
 import { CheckoutModal } from "@/components/CheckoutModal";
 import { WhatsAppFab } from "@/components/WhatsAppFab";
 import { supabase } from "@/integrations/supabase/client";
-import type { Product } from "@/lib/types";
+import { isVisibleInStore, type Product } from "@/lib/types";
 import { Loader2, Tag } from "lucide-react";
 
 export const Route = createFileRoute("/categories")({
@@ -40,16 +40,19 @@ function CategoriesPage() {
     },
   });
 
+  const inStock = useMemo(() => (data ?? []).filter(isVisibleInStore), [data]);
+
   const categories = useMemo(() => {
     const set = new Set<string>();
-    (data ?? []).forEach((p) => p.category && set.add(p.category));
+    inStock.forEach((p) => p.category && set.add(p.category));
     return Array.from(set);
-  }, [data]);
+  }, [inStock]);
 
   const filtered = useMemo(
-    () => (selectedCat ? (data ?? []).filter((p) => p.category === selectedCat) : data ?? []),
-    [data, selectedCat],
+    () => (selectedCat ? inStock.filter((p) => p.category === selectedCat) : inStock),
+    [inStock, selectedCat],
   );
+
 
   return (
     <>

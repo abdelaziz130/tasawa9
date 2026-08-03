@@ -13,7 +13,7 @@ import { customerWaLink } from "@/lib/whatsapp";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { SettingsMenu } from "@/components/SettingsMenu";
 import { generateProductCopy, generateLandingPage } from "@/lib/ai.functions";
-import { addStaff, removeStaff } from "@/lib/staff.functions";
+import { addStaff, removeStaff, setStaffStatus } from "@/lib/staff.functions";
 import {
   Package,
   ShoppingBag,
@@ -62,10 +62,11 @@ const TABS: { key: TabKey; label: string; icon: React.ReactNode; ownerOnly?: boo
   { key: "orders", label: "الطلبات", icon: <ShoppingBag className="size-4" /> },
   { key: "products", label: "المنتجات", icon: <Package className="size-4" /> },
   { key: "coupons", label: "الأكواد", icon: <Ticket className="size-4" />, ownerOnly: true },
-  { key: "abandoned", label: "متروكة", icon: <ShoppingCart className="size-4" /> },
+  { key: "abandoned", label: "متروكة", icon: <ShoppingCart className="size-4" />, ownerOnly: true },
   { key: "staff", label: "الموظفون", icon: <Users className="size-4" />, ownerOnly: true },
   { key: "settings", label: "الإعدادات", icon: <Settings className="size-4" />, ownerOnly: true },
 ];
+
 
 function AdminPage() {
   const [session, setSession] = useState<Session | null>(null);
@@ -97,11 +98,11 @@ function AdminPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("user_roles")
-        .select("role")
+        .select("role,status")
         .eq("user_id", session!.user.id)
         .maybeSingle();
       if (error) throw error;
-      return (data?.role ?? null) as "admin" | "sub_admin" | null;
+      return (data ?? null) as { role: "admin" | "sub_admin"; status: string } | null;
     },
   });
 
@@ -113,11 +114,14 @@ function AdminPage() {
     );
   }
 
-  const role: Role | null = isOwner ? "owner" : roleRow ?? null;
-  if (!session || !role) return <AdminLogin loggedIn={!!session} />;
+  const blocked = !isOwner && roleRow?.status === "blocked";
+  const role: Role | null = isOwner ? "owner" : blocked ? null : roleRow?.role ?? null;
+  if (!session || !role) return <AdminLogin loggedIn={!!session} blocked={blocked} />;
 
-  const visibleTabs = TABS.filter((t) => !t.ownerOnly || role === "owner" || role === "admin");
+  const isStaffOnly = role === "sub_admin";
+  const visibleTabs = TABS.filter((t) => !t.ownerOnly || !isStaffOnly);
   const activeTab = visibleTabs.some((t) => t.key === tab) ? tab : "orders";
+
 
   return (
     <main className="min-h-dvh mx-auto max-w-md lg:max-w-6xl px-3 py-4">
@@ -157,7 +161,7 @@ function AdminPage() {
         </div>
       </div>
 
-      <StatsCards />
+      {!isStaffOnly && <StatsCards />}
 
       <div className="mt-4 lg:grid lg:grid-cols-[220px_minmax(0,1fr)] lg:gap-5">
         <nav className="grid grid-cols-4 gap-1 rounded-2xl glass p-1 lg:sticky lg:top-4 lg:h-fit lg:grid-cols-1 lg:gap-1.5 lg:p-2">
@@ -204,7 +208,7 @@ function TabBtn({
   );
 }
 
-function AdminLogin({ loggedIn }: { loggedIn: boolean }) {
+function AdminLogin({ loggedIn, blocked }: { loggedIn: boolean; blocked?: boolean }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
@@ -237,11 +241,19 @@ function AdminLogin({ loggedIn }: { loggedIn: boolean }) {
       return;
     }
     const { data } = await supabase.auth.getUser();
+    const uid = data.user?.id;
     if (data.user?.email?.toLowerCase() !== ADMIN_EMAIL) {
-      await supabase.auth.signOut();
-      toast.error("هذا الحساب ليس مدير النظام");
-      navigate({ to: "/" });
-      return;
+      const { data: row } = await supabase
+        .from("user_roles")
+        .select("role,status")
+        .eq("user_id", uid!)
+        .maybeSingle();
+      if (!row || row.status === "blocked") {
+        await supabase.auth.signOut();
+        toast.error(row ? "تم سحب صلاحياتك من الإدارة" : "هذا الحساب لا يملك صلاحية الإدارة");
+        navigate({ to: "/" });
+        return;
+      }
     }
     toast.success("تم الدخول");
   };
@@ -255,9 +267,14 @@ function AdminLogin({ loggedIn }: { loggedIn: boolean }) {
           </div>
           <h2 className="text-xl font-extrabold">لوحة التحكم</h2>
           <p className="text-sm text-muted-foreground">
-            {loggedIn ? "هذا الحساب ليس مديراً." : "تسجيل دخول المدير"}
+            {blocked
+              ? "تم سحب صلاحيات هذا الحساب."
+              : loggedIn
+                ? "هذا الحساب لا يملك صلاحية الإدارة."
+                : "تسجيل الدخول"}
           </p>
         </div>
+
         <form onSubmit={submit} className="space-y-3">
           <input
             type="email"
@@ -404,6 +421,16 @@ function OrdersPanel() {
   };
 
 
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const selected = filtered.find((o) => o.id === selectedId) ?? filtered[0] ?? null;
+
+  const cardProps = {
+    onStatus: updateStatus,
+    onDelete: del,
+    onAccept: accept,
+    onRefuse: refuse,
+  };
+
   return (
     <div className="space-y-3">
       <div className="flex gap-2 overflow-x-auto pb-1 -mx-3 px-3">
@@ -427,23 +454,101 @@ function OrdersPanel() {
       ) : filtered.length === 0 ? (
         <div className="py-10 text-center text-muted-foreground">لا توجد طلبات</div>
       ) : (
-        <ul className="space-y-2 lg:grid lg:grid-cols-2 lg:gap-3 lg:space-y-0">
-          {filtered.map((o) => (
-            <OrderCard
-              key={o.id}
-              order={o}
-              onStatus={updateStatus}
-              onDelete={del}
-              onAccept={accept}
-              onRefuse={refuse}
-            />
-          ))}
-        </ul>
+        <>
+          {/* Mobile: stacked full cards */}
+          <ul className="space-y-2 lg:hidden">
+            {filtered.map((o) => (
+              <OrderCard key={o.id} order={o} {...cardProps} />
+            ))}
+          </ul>
 
+          {/* Desktop: split view — list on the left, details + label preview on the right */}
+          <div className="hidden lg:grid lg:grid-cols-[300px_minmax(0,1fr)] lg:gap-4 lg:items-start">
+            <ul className="max-h-[75vh] space-y-1.5 overflow-y-auto pl-1">
+              {filtered.map((o) => (
+                <li key={o.id}>
+                  <button
+                    onClick={() => setSelectedId(o.id)}
+                    className={`w-full rounded-2xl p-2.5 text-right transition ${
+                      selected?.id === o.id ? "glass-strong ring-2 ring-primary" : "glass"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="truncate text-sm font-bold">{o.customer_name}</span>
+                      <StatusBadge status={o.status} />
+                    </div>
+                    <div className="mt-0.5 flex items-center justify-between text-[11px] text-muted-foreground">
+                      <span className="truncate">{o.wilaya}</span>
+                      <span className="font-extrabold text-primary">
+                        {formatDZD(o.total_price)}
+                      </span>
+                    </div>
+                  </button>
+                </li>
+              ))}
+            </ul>
+
+            {selected && (
+              <div className="grid gap-4 xl:grid-cols-2">
+                <ul>
+                  <OrderCard key={selected.id} order={selected} {...cardProps} />
+                </ul>
+                <ShippingLabelPreview order={selected} />
+              </div>
+            )}
+          </div>
+        </>
       )}
     </div>
   );
 }
+
+/** Bordereau preview formatted for Algerian couriers (Yalidine / ZR Express). */
+function ShippingLabelPreview({ order }: { order: Order }) {
+  const items = (order.cart_items ?? []) as CartItemLite[];
+  return (
+    <div className="rounded-2xl glass p-3 space-y-3">
+      <div className="flex items-center justify-between">
+        <div className="text-xs font-extrabold text-muted-foreground">معاينة ملصق الشحن</div>
+        <button
+          onClick={() => printInvoice(order)}
+          className="h-8 px-3 rounded-xl bg-primary/15 text-primary text-xs font-extrabold flex items-center gap-1"
+        >
+          <Printer className="size-3.5" /> طباعة
+        </button>
+      </div>
+      <div className="rounded-xl bg-white p-3 text-black text-[11px] space-y-2">
+        <div className="flex items-center justify-between border-b border-black/20 pb-1.5">
+          <span className="font-black">تسوق | Tasawa9</span>
+          <span dir="ltr">#{order.id.slice(0, 8).toUpperCase()}</span>
+        </div>
+        <div className="space-y-0.5">
+          <div className="font-bold">{order.customer_name}</div>
+          <div dir="ltr">{order.phone}</div>
+          <div>
+            {order.wilaya} — {order.commune}
+          </div>
+          <div>{order.delivery_type}</div>
+        </div>
+        <ul className="border-t border-black/20 pt-1.5 space-y-0.5">
+          {items.map((c, i) => (
+            <li key={i} className="flex justify-between">
+              <span>
+                {c.quantity}× {c.title}
+              </span>
+              <span>{formatDZD(c.price * c.quantity)}</span>
+            </li>
+          ))}
+        </ul>
+        <div className="flex justify-between border-t border-black/20 pt-1.5 text-sm font-black">
+          <span>الدفع عند الاستلام</span>
+          <span>{formatDZD(order.total_price)}</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 
 function OrderCard({
   order,
@@ -1336,11 +1441,14 @@ function ProductForm({
 function StaffPanel() {
   const qc = useQueryClient();
   const [email, setEmail] = useState("");
+  const [fullName, setFullName] = useState("");
   const [password, setPassword] = useState("");
   const [role, setRole] = useState<"sub_admin" | "admin">("sub_admin");
   const [busy, setBusy] = useState(false);
   const create = useServerFn(addStaff);
   const drop = useServerFn(removeStaff);
+  const setStatus = useServerFn(setStaffStatus);
+
 
   const { data, isLoading } = useQuery({
     queryKey: ["staff"],
@@ -1358,9 +1466,10 @@ function StaffPanel() {
     e.preventDefault();
     setBusy(true);
     try {
-      await create({ data: { email: email.trim(), password, role } });
+      await create({ data: { email: email.trim(), password, fullName: fullName.trim(), role } });
       toast.success("تم إضافة الموظف");
       setEmail("");
+      setFullName("");
       setPassword("");
       qc.invalidateQueries({ queryKey: ["staff"] });
     } catch (err) {
@@ -1371,15 +1480,29 @@ function StaffPanel() {
   };
 
   const remove = async (id: string) => {
-    if (!confirm("إلغاء صلاحيات هذا الموظف؟")) return;
+    if (!confirm("حذف هذا الموظف نهائياً؟")) return;
     try {
       await drop({ data: { id } });
-      toast.success("تم الإلغاء");
+      toast.success("تم الحذف");
       qc.invalidateQueries({ queryKey: ["staff"] });
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "تعذّر الإلغاء");
+      toast.error(err instanceof Error ? err.message : "تعذّر الحذف");
     }
   };
+
+  const toggleBlock = async (s: StaffMember) => {
+    const next = s.status === "blocked" ? "active" : "blocked";
+    if (next === "blocked" && !confirm("سحب صلاحيات هذا الموظف وإنهاء جلسته؟")) return;
+    try {
+      await setStatus({ data: { id: s.id, status: next } });
+      toast.success(next === "blocked" ? "تم حظر الموظف" : "تمت إعادة الصلاحيات");
+      qc.invalidateQueries({ queryKey: ["staff"] });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "تعذّر التنفيذ");
+    }
+  };
+
+
 
   return (
     <div className="space-y-3">
@@ -1387,6 +1510,13 @@ function StaffPanel() {
         <div className="flex items-center gap-1.5 text-sm font-extrabold">
           <Users className="size-4 text-primary" /> إضافة موظف / مساعد
         </div>
+        <input
+          value={fullName}
+          onChange={(e) => setFullName(e.target.value)}
+          type="text"
+          placeholder="الاسم الكامل"
+          className="sinp"
+        />
         <input
           value={email}
           onChange={(e) => setEmail(e.target.value)}
@@ -1431,17 +1561,38 @@ function StaffPanel() {
           {(data ?? []).map((s) => (
             <li key={s.id} className="flex items-center gap-2 rounded-2xl glass p-3">
               <div className="min-w-0 flex-1">
-                <div className="truncate text-sm font-bold" dir="ltr">
+                <div className="truncate text-sm font-bold">{s.full_name || "بدون اسم"}</div>
+                <div className="truncate text-[11px] text-muted-foreground" dir="ltr">
                   {s.email}
                 </div>
-                <div className="text-[11px] text-muted-foreground">
-                  {s.role === "admin" ? "مدير" : "مساعد"}
+                <div className="mt-0.5 flex items-center gap-1.5 text-[11px]">
+                  <span className="text-muted-foreground">
+                    {s.role === "admin" ? "مدير" : "مساعد"}
+                  </span>
+                  <span
+                    className={`rounded-full px-2 py-0.5 font-extrabold ${
+                      s.status === "blocked"
+                        ? "bg-destructive/15 text-destructive"
+                        : "bg-success/15 text-success"
+                    }`}
+                  >
+                    {s.status === "blocked" ? "محظور" : "نشط"}
+                  </span>
                 </div>
               </div>
               <button
+                onClick={() => toggleBlock(s)}
+                className={`h-9 px-3 rounded-xl text-xs font-extrabold flex items-center gap-1 ${
+                  s.status === "blocked" ? "bg-success/15 text-success" : "bg-destructive/10 text-destructive"
+                }`}
+              >
+                <Ban className="size-3.5" />
+                {s.status === "blocked" ? "إعادة الصلاحيات" : "حظر / سحب الصلاحيات"}
+              </button>
+              <button
                 onClick={() => remove(s.id)}
                 className="size-9 grid place-items-center rounded-xl bg-destructive/10 text-destructive"
-                aria-label="إلغاء الصلاحيات"
+                aria-label="حذف الموظف"
               >
                 <Trash2 className="size-4" />
               </button>
@@ -1449,6 +1600,7 @@ function StaffPanel() {
           ))}
         </ul>
       )}
+
     </div>
   );
 }

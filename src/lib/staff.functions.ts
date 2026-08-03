@@ -11,14 +11,14 @@ function assertOwner(claims: Record<string, unknown> | undefined) {
 /** Create (or attach) a sub-admin employee account. Owner-admin only. */
 export const addStaff = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { email: string; password: string; role?: "admin" | "sub_admin" }) => {
+  .inputValidator((input: { email: string; password: string; fullName?: string; role?: "admin" | "sub_admin" }) => {
     const email = String(input?.email ?? "").trim().toLowerCase();
     const password = String(input?.password ?? "");
+    const fullName = String(input?.fullName ?? "").trim() || null;
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) throw new Error("البريد غير صالح");
     if (password.length < 6) throw new Error("كلمة المرور يجب أن تكون 6 أحرف على الأقل");
     const role: "admin" | "sub_admin" = input.role === "admin" ? "admin" : "sub_admin";
-    return { email, password, role };
-
+    return { email, password, fullName, role };
   })
   .handler(async ({ data, context }) => {
     assertOwner(context.claims as Record<string, unknown>);
@@ -42,14 +42,57 @@ export const addStaff = createServerFn({ method: "POST" })
     const { error } = await supabaseAdmin
       .from("user_roles")
       .upsert(
-        { user_id: userId, email: data.email, role: data.role },
+        {
+          user_id: userId,
+          email: data.email,
+          full_name: data.fullName,
+          role: data.role,
+          status: "active",
+        },
         { onConflict: "user_id,role" },
       );
     if (error) throw new Error(error.message);
     return { ok: true, userId };
   });
 
-/** Revoke an employee's access. Owner-admin only. */
+/** Block or unblock an employee: revokes their sessions and blocks login. Owner-admin only. */
+export const setStaffStatus = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { id: string; status: "active" | "blocked" }) => {
+    const id = String(input?.id ?? "").trim();
+    if (!id) throw new Error("معرّف مطلوب");
+    const status = input?.status === "blocked" ? "blocked" : "active";
+    return { id, status };
+  })
+  .handler(async ({ data, context }) => {
+    assertOwner(context.claims as Record<string, unknown>);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+
+    const { data: row, error: readErr } = await supabaseAdmin
+      .from("user_roles")
+      .select("user_id")
+      .eq("id", data.id)
+      .maybeSingle();
+    if (readErr) throw new Error(readErr.message);
+    if (!row?.user_id) throw new Error("الموظف غير موجود");
+
+    const { error } = await supabaseAdmin
+      .from("user_roles")
+      .update({ status: data.status })
+      .eq("id", data.id);
+    if (error) throw new Error(error.message);
+
+    // Revoke the active session and block/allow future logins.
+    if (data.status === "blocked") {
+      await supabaseAdmin.auth.admin.signOut(row.user_id, "global").catch(() => {});
+      await supabaseAdmin.auth.admin.updateUserById(row.user_id, { ban_duration: "876000h" });
+    } else {
+      await supabaseAdmin.auth.admin.updateUserById(row.user_id, { ban_duration: "none" });
+    }
+    return { ok: true };
+  });
+
+/** Revoke an employee's access entirely. Owner-admin only. */
 export const removeStaff = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: { id: string }) => {
@@ -64,3 +107,4 @@ export const removeStaff = createServerFn({ method: "POST" })
     if (error) throw new Error(error.message);
     return { ok: true };
   });
+

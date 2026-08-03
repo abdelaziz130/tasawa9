@@ -4,6 +4,7 @@ import { Bot, MessageCircle, Send, X } from "lucide-react";
 import { askChatbot } from "@/lib/chatbot.functions";
 import { waLink } from "@/lib/whatsapp";
 import { useWhatsAppNumber } from "@/lib/settings";
+import { useChatUI } from "@/lib/chat-ui";
 
 type Msg = { role: "user" | "assistant"; content: string };
 
@@ -15,11 +16,12 @@ const GREETING: Msg = {
 const SUGGESTIONS = ["كيفاش نطلب؟", "شحال رسوم التوصيل؟", "الدفع عند الاستلام؟"];
 
 export function AIChatWidget() {
-  const [open, setOpen] = useState(false);
+  const { open, setOpen } = useChatUI();
   const [msgs, setMsgs] = useState<Msg[]>([GREETING]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const ask = useServerFn(askChatbot);
+
   const number = useWhatsAppNumber();
   const endRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
@@ -61,7 +63,7 @@ export function AIChatWidget() {
   return (
     <>
       <button
-        onClick={() => setOpen((v) => !v)}
+        onClick={() => setOpen(!open)}
         aria-label="مساعد ذكي"
         className="fixed bottom-24 right-4 z-40 grid size-14 place-items-center rounded-full btn-primary shadow-2xl transition hover:scale-105 active:scale-95"
       >

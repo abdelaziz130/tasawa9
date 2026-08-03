@@ -59,9 +59,12 @@ export type StaffMember = {
   id: string;
   user_id: string;
   email: string;
+  full_name: string | null;
+  status: "active" | "blocked";
   role: "admin" | "sub_admin";
   created_at: string;
 };
+
 
 export const ORDER_STATUSES = ["جديد", "مؤكد", "قيد الشحن", "تم التسليم", "مرفوض", "ملغى"] as const;
 export type OrderStatus = (typeof ORDER_STATUSES)[number];

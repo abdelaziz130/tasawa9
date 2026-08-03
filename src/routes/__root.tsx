@@ -3,6 +3,7 @@ import {
   Outlet,
   createRootRouteWithContext,
   useRouter,
+  useRouterState,
   HeadContent,
   Scripts,
 } from "@tanstack/react-router";
@@ -13,11 +14,13 @@ import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { CartProvider } from "@/lib/cart";
 import { ThemeProvider } from "@/lib/theme";
+import { ChatUIProvider } from "@/lib/chat-ui";
 import { BottomNav } from "@/components/BottomNav";
 import { SocialProof } from "@/components/SocialProof";
 import { PWAInstallBanner } from "@/components/PWAInstallBanner";
 import { WhatsAppFab } from "@/components/WhatsAppFab";
 import { AIChatWidget } from "@/components/AIChatWidget";
+
 
 function NotFoundComponent() {
   return (
@@ -119,21 +122,30 @@ function RootShell({ children }: { children: ReactNode }) {
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const isAdmin = pathname.startsWith("/admin");
   return (
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
         <CartProvider>
-          <div className="mx-auto max-w-md lg:max-w-7xl min-h-dvh bg-background pb-20">
-            <Outlet />
-          </div>
-          <BottomNav />
-          <WhatsAppFab />
-          <AIChatWidget />
-          <PWAInstallBanner />
-          <SocialProof />
-          <Toaster position="top-center" richColors closeButton />
+          <ChatUIProvider>
+            <div className="mx-auto max-w-md lg:max-w-7xl min-h-dvh bg-background pb-20">
+              <Outlet />
+            </div>
+            {!isAdmin && (
+              <>
+                <BottomNav />
+                <WhatsAppFab />
+                <AIChatWidget />
+                <PWAInstallBanner />
+                <SocialProof />
+              </>
+            )}
+            <Toaster position="top-center" richColors closeButton />
+          </ChatUIProvider>
         </CartProvider>
       </ThemeProvider>
     </QueryClientProvider>
   );
 }
+

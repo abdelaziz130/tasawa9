@@ -1,10 +1,10 @@
 import { Link } from "@tanstack/react-router";
-import { Search, ShoppingBag } from "lucide-react";
-import { useCart } from "@/lib/cart";
+import { Search } from "lucide-react";
 import { ThemeToggle } from "./ThemeToggle";
-import { SettingsMenu } from "./SettingsMenu";
+import { CustomerMenu } from "./CustomerMenu";
 import { useStoreSettings } from "@/lib/settings";
 import logo from "@/assets/logo.png";
+
 
 export function AppHeader({
   search,
@@ -13,8 +13,8 @@ export function AppHeader({
   search?: string;
   onSearch?: (v: string) => void;
 }) {
-  const { count } = useCart();
   const { data: settings } = useStoreSettings();
+
 
   return (
     <header className="sticky top-0 z-30 glass-strong border-b border-border">
@@ -39,20 +39,9 @@ export function AppHeader({
           </Link>
           <div className="flex shrink-0 items-center gap-1.5">
             <ThemeToggle />
-            <SettingsMenu />
-            <Link
-              to="/cart"
-              className="relative grid size-10 place-items-center rounded-2xl glass hover:bg-primary/10 transition"
-              aria-label="السلة"
-            >
-              <ShoppingBag className="size-5" />
-              {count > 0 && (
-                <span className="absolute -top-1 -left-1 min-w-5 h-5 px-1 rounded-full bg-accent text-accent-foreground text-[11px] font-extrabold flex items-center justify-center">
-                  {count}
-                </span>
-              )}
-            </Link>
+            <CustomerMenu />
           </div>
+
         </div>
         {onSearch && (
           <div className="mt-3 relative">

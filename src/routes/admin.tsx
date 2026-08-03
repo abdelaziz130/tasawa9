@@ -1466,9 +1466,10 @@ function StaffPanel() {
     e.preventDefault();
     setBusy(true);
     try {
-      await create({ data: { email: email.trim(), password, role } });
+      await create({ data: { email: email.trim(), password, fullName: fullName.trim(), role } });
       toast.success("تم إضافة الموظف");
       setEmail("");
+      setFullName("");
       setPassword("");
       qc.invalidateQueries({ queryKey: ["staff"] });
     } catch (err) {
@@ -1479,15 +1480,29 @@ function StaffPanel() {
   };
 
   const remove = async (id: string) => {
-    if (!confirm("إلغاء صلاحيات هذا الموظف؟")) return;
+    if (!confirm("حذف هذا الموظف نهائياً؟")) return;
     try {
       await drop({ data: { id } });
-      toast.success("تم الإلغاء");
+      toast.success("تم الحذف");
       qc.invalidateQueries({ queryKey: ["staff"] });
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "تعذّر الإلغاء");
+      toast.error(err instanceof Error ? err.message : "تعذّر الحذف");
     }
   };
+
+  const toggleBlock = async (s: StaffMember) => {
+    const next = s.status === "blocked" ? "active" : "blocked";
+    if (next === "blocked" && !confirm("سحب صلاحيات هذا الموظف وإنهاء جلسته؟")) return;
+    try {
+      await setStatus({ data: { id: s.id, status: next } });
+      toast.success(next === "blocked" ? "تم حظر الموظف" : "تمت إعادة الصلاحيات");
+      qc.invalidateQueries({ queryKey: ["staff"] });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "تعذّر التنفيذ");
+    }
+  };
+
+
 
   return (
     <div className="space-y-3">

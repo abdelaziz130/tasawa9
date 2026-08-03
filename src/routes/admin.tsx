@@ -1441,11 +1441,14 @@ function ProductForm({
 function StaffPanel() {
   const qc = useQueryClient();
   const [email, setEmail] = useState("");
+  const [fullName, setFullName] = useState("");
   const [password, setPassword] = useState("");
   const [role, setRole] = useState<"sub_admin" | "admin">("sub_admin");
   const [busy, setBusy] = useState(false);
   const create = useServerFn(addStaff);
   const drop = useServerFn(removeStaff);
+  const setStatus = useServerFn(setStaffStatus);
+
 
   const { data, isLoading } = useQuery({
     queryKey: ["staff"],

@@ -13,7 +13,7 @@ import { customerWaLink } from "@/lib/whatsapp";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { SettingsMenu } from "@/components/SettingsMenu";
 import { generateProductCopy, generateLandingPage } from "@/lib/ai.functions";
-import { addStaff, removeStaff } from "@/lib/staff.functions";
+import { addStaff, removeStaff, setStaffStatus } from "@/lib/staff.functions";
 import {
   Package,
   ShoppingBag,

@@ -1511,6 +1511,13 @@ function StaffPanel() {
           <Users className="size-4 text-primary" /> إضافة موظف / مساعد
         </div>
         <input
+          value={fullName}
+          onChange={(e) => setFullName(e.target.value)}
+          type="text"
+          placeholder="الاسم الكامل"
+          className="sinp"
+        />
+        <input
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           type="email"
@@ -1554,17 +1561,38 @@ function StaffPanel() {
           {(data ?? []).map((s) => (
             <li key={s.id} className="flex items-center gap-2 rounded-2xl glass p-3">
               <div className="min-w-0 flex-1">
-                <div className="truncate text-sm font-bold" dir="ltr">
+                <div className="truncate text-sm font-bold">{s.full_name || "بدون اسم"}</div>
+                <div className="truncate text-[11px] text-muted-foreground" dir="ltr">
                   {s.email}
                 </div>
-                <div className="text-[11px] text-muted-foreground">
-                  {s.role === "admin" ? "مدير" : "مساعد"}
+                <div className="mt-0.5 flex items-center gap-1.5 text-[11px]">
+                  <span className="text-muted-foreground">
+                    {s.role === "admin" ? "مدير" : "مساعد"}
+                  </span>
+                  <span
+                    className={`rounded-full px-2 py-0.5 font-extrabold ${
+                      s.status === "blocked"
+                        ? "bg-destructive/15 text-destructive"
+                        : "bg-success/15 text-success"
+                    }`}
+                  >
+                    {s.status === "blocked" ? "محظور" : "نشط"}
+                  </span>
                 </div>
               </div>
               <button
+                onClick={() => toggleBlock(s)}
+                className={`h-9 px-3 rounded-xl text-xs font-extrabold flex items-center gap-1 ${
+                  s.status === "blocked" ? "bg-success/15 text-success" : "bg-destructive/10 text-destructive"
+                }`}
+              >
+                <Ban className="size-3.5" />
+                {s.status === "blocked" ? "إعادة الصلاحيات" : "حظر / سحب الصلاحيات"}
+              </button>
+              <button
                 onClick={() => remove(s.id)}
                 className="size-9 grid place-items-center rounded-xl bg-destructive/10 text-destructive"
-                aria-label="إلغاء الصلاحيات"
+                aria-label="حذف الموظف"
               >
                 <Trash2 className="size-4" />
               </button>
@@ -1572,6 +1600,7 @@ function StaffPanel() {
           ))}
         </ul>
       )}
+
     </div>
   );
 }

@@ -22,7 +22,7 @@ export function AppHeader({
         <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
           <Link to="/" className="flex min-w-0 items-center gap-2">
             <img
-              src={logo}
+              src={settings?.app_icon_url || logo}
               alt="تسوق Tasawa9"
               width={40}
               height={40}

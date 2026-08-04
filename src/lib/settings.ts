@@ -7,6 +7,7 @@ export type StoreSettings = {
   whatsapp_number: string;
   default_theme: string;
   chatbot_kb: string;
+  app_icon_url: string | null;
 };
 
 export const DEFAULT_WHATSAPP = "213782524124";
@@ -17,7 +18,7 @@ export function useStoreSettings() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("store_settings")
-        .select("id,store_name,whatsapp_number,default_theme,chatbot_kb")
+        .select("id,store_name,whatsapp_number,default_theme,chatbot_kb,app_icon_url")
         .limit(1)
         .maybeSingle();
       if (error) throw error;

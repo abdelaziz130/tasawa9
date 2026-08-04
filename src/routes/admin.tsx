@@ -1614,6 +1614,40 @@ function SettingsPanel() {
   const [busy, setBusy] = useState(false);
   const [newEmail, setNewEmail] = useState("");
   const [newPass, setNewPass] = useState("");
+  const [iconUrl, setIconUrl] = useState("");
+  const [iconBusy, setIconBusy] = useState(false);
+  const pwa = usePwaInstall();
+  const [iosGuide, setIosGuide] = useState(false);
+
+  const installApp = async () => {
+    if (pwa.installed) return toast.info("التطبيق مثبّت بالفعل");
+    if (pwa.platform === "ios") return setIosGuide(true);
+    if (pwa.canPrompt) {
+      const r = await pwa.install();
+      if (r === "accepted") toast.success("تم تثبيت التطبيق");
+      return;
+    }
+    toast.info("افتح قائمة المتصفح (⋮) ثم اختر «تثبيت التطبيق»");
+  };
+
+  const uploadIcon = async (file: File) => {
+    setIconBusy(true);
+    const ext = file.name.split(".").pop() ?? "png";
+    const path = `app-icon-${Date.now()}.${ext}`;
+    const { error: upErr } = await supabase.storage
+      .from("product-images")
+      .upload(path, file, { cacheControl: "3600", upsert: false });
+    if (!upErr) {
+      const { data: signed } = await supabase.storage
+        .from("product-images")
+        .createSignedUrl(path, 60 * 60 * 24 * 365 * 5);
+      if (signed?.signedUrl) setIconUrl(signed.signedUrl);
+      toast.success("تم رفع الأيقونة، اضغط حفظ الإعدادات");
+    } else {
+      toast.error("فشل الرفع: " + upErr.message);
+    }
+    setIconBusy(false);
+  };
 
   const { data } = useQuery({
     queryKey: ["store-settings-admin"],
@@ -1629,6 +1663,7 @@ function SettingsPanel() {
       setStoreName(String(data.store_name ?? ""));
       setWhatsapp(String(data.whatsapp_number ?? ""));
       setKb(String(data.chatbot_kb ?? ""));
+      setIconUrl(String((data as { app_icon_url?: string | null }).app_icon_url ?? ""));
       setLoaded(true);
     }
   }, [data, loaded]);
@@ -1640,6 +1675,7 @@ function SettingsPanel() {
       store_name: storeName.trim() || "تسوق | Tasawa9",
       whatsapp_number: whatsapp.replace(/[^\d]/g, "") || "213782524124",
       chatbot_kb: kb,
+      app_icon_url: iconUrl.trim() || null,
     };
     const { error } = data?.id
       ? await supabase.from("store_settings").update(payload).eq("id", data.id)
@@ -1670,8 +1706,42 @@ function SettingsPanel() {
         <div className="flex items-center gap-1.5 text-sm font-extrabold">
           <Settings className="size-4 text-primary" /> إعدادات المتجر
         </div>
-        <Fld label="اسم المتجر">
+        <Fld label="اسم التطبيق / المتجر">
           <input value={storeName} onChange={(e) => setStoreName(e.target.value)} className="sinp" />
+        </Fld>
+        <Fld label="صورة / أيقونة التطبيق">
+          <div className="flex items-center gap-2">
+            {iconUrl ? (
+              <img
+                src={iconUrl}
+                alt="أيقونة التطبيق"
+                className="size-12 shrink-0 rounded-2xl object-cover ring-1 ring-primary/40"
+              />
+            ) : (
+              <span className="grid size-12 shrink-0 place-items-center rounded-2xl glass text-[10px] text-muted-foreground">
+                بدون
+              </span>
+            )}
+            <input
+              value={iconUrl}
+              onChange={(e) => setIconUrl(e.target.value)}
+              placeholder="https://..."
+              dir="ltr"
+              className="sinp min-w-0 flex-1"
+            />
+          </div>
+          <label className="mt-2 flex h-10 cursor-pointer items-center justify-center rounded-xl glass text-xs font-extrabold">
+            {iconBusy ? "جاري الرفع..." : "رفع صورة من الجهاز"}
+            <input
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) void uploadIcon(f);
+              }}
+            />
+          </label>
         </Fld>
         <Fld label="رقم واتساب الدعم">
           <input
@@ -1723,6 +1793,42 @@ function SettingsPanel() {
         <button className="w-full h-11 rounded-xl glass font-extrabold">تحديث الحساب</button>
         <style>{`.sinp{width:100%;height:42px;border-radius:12px;border:1px solid var(--border);padding:0 12px;font-size:14px;background:var(--input);color:var(--foreground);outline:none}.sinp:focus{border-color:var(--primary)}`}</style>
       </form>
+
+      <div className="rounded-2xl glass p-3 space-y-2">
+        <div className="flex items-center gap-1.5 text-sm font-extrabold">
+          <Download className="size-4 text-primary" /> تطبيق الإدارة
+        </div>
+        <p className="text-xs text-muted-foreground">
+          ثبّت لوحة التحكم كتطبيق على الهاتف أو الكمبيوتر للوصول السريع.
+        </p>
+        <button
+          type="button"
+          onClick={installApp}
+          className="w-full h-11 rounded-xl btn-primary font-extrabold"
+        >
+          {pwa.installed ? "التطبيق مثبّت" : "تثبيت التطبيق"}
+        </button>
+      </div>
+
+      {iosGuide && (
+        <div className="fixed inset-0 z-[80] grid place-items-center p-4">
+          <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setIosGuide(false)} />
+          <div className="relative w-full max-w-sm rounded-3xl glass-strong p-5 space-y-3">
+            <h3 className="font-extrabold">إضافة التطبيق على آيفون</h3>
+            <ol className="space-y-2 text-sm text-muted-foreground">
+              <li>1. اضغط زر المشاركة في شريط سفاري السفلي</li>
+              <li>2. اختر «الإضافة إلى الشاشة الرئيسية»</li>
+              <li>3. اضغط «إضافة»</li>
+            </ol>
+            <button
+              onClick={() => setIosGuide(false)}
+              className="h-11 w-full rounded-2xl btn-primary font-extrabold"
+            >
+              فهمت
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

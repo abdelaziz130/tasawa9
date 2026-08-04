@@ -39,7 +39,11 @@ import {
   Check,
   Ban,
   ExternalLink,
+  Download,
+  KeyRound,
+  ArrowRight,
 } from "lucide-react";
+import { usePwaInstall } from "@/lib/pwa";
 
 
 const ADMIN_EMAIL = "chaib.aziz2004@gmail.com";
@@ -209,30 +213,42 @@ function TabBtn({
 }
 
 function AdminLogin({ loggedIn, blocked }: { loggedIn: boolean; blocked?: boolean }) {
-  const [email, setEmail] = useState("");
+  const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
+  const [mode, setMode] = useState<"login" | "forgot" | "verify">("login");
+  const [resetEmail, setResetEmail] = useState("");
+  const [otp, setOtp] = useState("");
+  const [resetPass, setResetPass] = useState("");
   const navigate = useNavigate();
 
   useEffect(() => {
     fetch("/api/public/setup-admin").catch(() => {});
   }, []);
 
+  const credentials = (value: string, pass: string) => {
+    const v = value.trim();
+    const isEmail = v.includes("@");
+    if (isEmail) return { email: v, password: pass };
+    const digits = v.replace(/[^\d+]/g, "");
+    const phone = digits.startsWith("+")
+      ? digits
+      : digits.startsWith("0")
+        ? `+213${digits.slice(1)}`
+        : `+${digits}`;
+    return { phone, password: pass };
+  };
+
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setBusy(true);
-    let { error } = await supabase.auth.signInWithPassword({
-      email: email.trim(),
-      password,
-    });
+    const creds = credentials(identifier, password);
+    let { error } = await supabase.auth.signInWithPassword(creds as never);
     if (error) {
       try {
         await fetch("/api/public/setup-admin");
       } catch {}
-      const retry = await supabase.auth.signInWithPassword({
-        email: email.trim(),
-        password,
-      });
+      const retry = await supabase.auth.signInWithPassword(creds as never);
       error = retry.error;
     }
     setBusy(false);
@@ -258,50 +274,169 @@ function AdminLogin({ loggedIn, blocked }: { loggedIn: boolean; blocked?: boolea
     toast.success("تم الدخول");
   };
 
+  const sendOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const email = resetEmail.trim();
+    if (!email.includes("@")) return toast.error("أدخل بريداً إلكترونياً صحيحاً");
+    setBusy(true);
+    const { error } = await supabase.auth.signInWithOtp({
+      email,
+      options: { shouldCreateUser: false },
+    });
+    setBusy(false);
+    if (error) return toast.error(error.message);
+    toast.success("تم إرسال رمز من 6 أرقام إلى بريدك");
+    setMode("verify");
+  };
+
+  const verifyAndReset = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const code = otp.replace(/[^\d]/g, "");
+    if (code.length !== 6) return toast.error("الرمز يجب أن يكون 6 أرقام");
+    if (resetPass.length < 6) return toast.error("كلمة المرور قصيرة جداً");
+    setBusy(true);
+    const { error } = await supabase.auth.verifyOtp({
+      email: resetEmail.trim(),
+      token: code,
+      type: "email",
+    });
+    if (error) {
+      setBusy(false);
+      return toast.error("الرمز غير صحيح أو منتهي");
+    }
+    const { error: upErr } = await supabase.auth.updateUser({ password: resetPass });
+    setBusy(false);
+    if (upErr) return toast.error(upErr.message);
+    toast.success("تم تحديث كلمة المرور");
+    setOtp("");
+    setResetPass("");
+    setMode("login");
+  };
+
   return (
     <main className="min-h-dvh grid place-items-center px-4 max-w-md mx-auto">
       <div className="w-full rounded-3xl glass-strong p-6 space-y-5 shadow-2xl">
         <div className="text-center space-y-2">
           <div className="mx-auto size-14 rounded-2xl btn-primary grid place-items-center">
-            <Lock className="size-6" />
+            {mode === "login" ? <Lock className="size-6" /> : <KeyRound className="size-6" />}
           </div>
           <h2 className="text-xl font-extrabold">لوحة التحكم</h2>
           <p className="text-sm text-muted-foreground">
-            {blocked
-              ? "تم سحب صلاحيات هذا الحساب."
-              : loggedIn
-                ? "هذا الحساب لا يملك صلاحية الإدارة."
-                : "تسجيل الدخول"}
+            {mode === "forgot"
+              ? "أدخل بريدك لإرسال رمز التحقق"
+              : mode === "verify"
+                ? "أدخل الرمز وكلمة المرور الجديدة"
+                : blocked
+                  ? "تم سحب صلاحيات هذا الحساب."
+                  : loggedIn
+                    ? "هذا الحساب لا يملك صلاحية الإدارة."
+                    : "تسجيل الدخول"}
           </p>
         </div>
 
-        <form onSubmit={submit} className="space-y-3">
-          <input
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="البريد الإلكتروني"
-            className="w-full h-12 rounded-xl bg-input border border-white/10 px-4 outline-none focus:border-primary"
-            required
-            autoComplete="email"
-          />
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder="كلمة المرور"
-            className="w-full h-12 rounded-xl bg-input border border-white/10 px-4 outline-none focus:border-primary"
-            required
-            autoComplete="current-password"
-          />
-          <button
-            disabled={busy}
-            className="w-full h-12 rounded-xl btn-primary font-extrabold disabled:opacity-60 flex items-center justify-center gap-2"
-          >
-            {busy && <Loader2 className="size-4 animate-spin" />}
-            {busy ? "..." : "دخول"}
-          </button>
-        </form>
+        {mode === "login" && (
+          <form onSubmit={submit} className="space-y-3">
+            <input
+              type="text"
+              value={identifier}
+              onChange={(e) => setIdentifier(e.target.value)}
+              placeholder="البريد الإلكتروني أو رقم الهاتف"
+              className="w-full h-12 rounded-xl bg-input border border-white/10 px-4 outline-none focus:border-primary"
+              required
+              autoComplete="username"
+            />
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="كلمة المرور"
+              className="w-full h-12 rounded-xl bg-input border border-white/10 px-4 outline-none focus:border-primary"
+              required
+              autoComplete="current-password"
+            />
+            <button
+              disabled={busy}
+              className="w-full h-12 rounded-xl btn-primary font-extrabold disabled:opacity-60 flex items-center justify-center gap-2"
+            >
+              {busy && <Loader2 className="size-4 animate-spin" />}
+              {busy ? "..." : "دخول"}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setResetEmail(identifier.includes("@") ? identifier.trim() : "");
+                setMode("forgot");
+              }}
+              className="w-full text-center text-xs font-bold text-primary"
+            >
+              نسيت كلمة السر؟
+            </button>
+          </form>
+        )}
+
+        {mode === "forgot" && (
+          <form onSubmit={sendOtp} className="space-y-3">
+            <input
+              type="email"
+              value={resetEmail}
+              onChange={(e) => setResetEmail(e.target.value)}
+              placeholder="البريد الإلكتروني المسجّل"
+              dir="ltr"
+              className="w-full h-12 rounded-xl bg-input border border-white/10 px-4 outline-none focus:border-primary"
+              required
+            />
+            <button
+              disabled={busy}
+              className="w-full h-12 rounded-xl btn-primary font-extrabold disabled:opacity-60"
+            >
+              {busy ? "..." : "إرسال رمز التحقق"}
+            </button>
+            <button
+              type="button"
+              onClick={() => setMode("login")}
+              className="mx-auto flex items-center gap-1 text-xs font-bold text-muted-foreground"
+            >
+              <ArrowRight className="size-3" /> رجوع لتسجيل الدخول
+            </button>
+          </form>
+        )}
+
+        {mode === "verify" && (
+          <form onSubmit={verifyAndReset} className="space-y-3">
+            <input
+              value={otp}
+              onChange={(e) => setOtp(e.target.value)}
+              placeholder="رمز التحقق (6 أرقام)"
+              inputMode="numeric"
+              maxLength={6}
+              dir="ltr"
+              className="w-full h-12 rounded-xl bg-input border border-white/10 px-4 text-center tracking-[0.4em] outline-none focus:border-primary"
+              required
+            />
+            <input
+              type="password"
+              value={resetPass}
+              onChange={(e) => setResetPass(e.target.value)}
+              placeholder="كلمة مرور جديدة"
+              dir="ltr"
+              className="w-full h-12 rounded-xl bg-input border border-white/10 px-4 outline-none focus:border-primary"
+              required
+            />
+            <button
+              disabled={busy}
+              className="w-full h-12 rounded-xl btn-primary font-extrabold disabled:opacity-60"
+            >
+              {busy ? "..." : "تعيين كلمة المرور"}
+            </button>
+            <button
+              type="button"
+              onClick={() => setMode("forgot")}
+              className="mx-auto flex items-center gap-1 text-xs font-bold text-muted-foreground"
+            >
+              <ArrowRight className="size-3" /> إعادة إرسال الرمز
+            </button>
+          </form>
+        )}
       </div>
     </main>
   );

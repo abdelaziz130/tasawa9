@@ -252,6 +252,7 @@ export type Database = {
       }
       store_settings: {
         Row: {
+          app_icon_url: string | null
           chatbot_kb: string
           created_at: string
           default_theme: string
@@ -261,6 +262,7 @@ export type Database = {
           whatsapp_number: string
         }
         Insert: {
+          app_icon_url?: string | null
           chatbot_kb?: string
           created_at?: string
           default_theme?: string
@@ -270,6 +272,7 @@ export type Database = {
           whatsapp_number?: string
         }
         Update: {
+          app_icon_url?: string | null
           chatbot_kb?: string
           created_at?: string
           default_theme?: string

@@ -62,16 +62,8 @@ export function AIChatWidget() {
 
   return (
     <>
-      <button
-        onClick={() => setOpen(!open)}
-        aria-label="مساعد ذكي"
-        className="fixed bottom-24 right-4 z-40 grid size-14 place-items-center rounded-full btn-primary shadow-2xl transition hover:scale-105 active:scale-95"
-      >
-        {open ? <X className="size-6" /> : <Bot className="size-7" />}
-      </button>
-
       {open && (
-        <div className="fixed bottom-40 right-3 z-40 flex h-[26rem] w-[min(22rem,calc(100vw-1.5rem))] flex-col overflow-hidden rounded-3xl glass-strong shadow-2xl">
+        <div className="fixed bottom-24 right-3 z-40 flex h-[26rem] w-[min(22rem,calc(100vw-1.5rem))] flex-col overflow-hidden rounded-3xl glass-strong shadow-2xl">
           <div className="flex items-center gap-2 border-b border-border px-4 py-3">
             <span className="grid size-8 place-items-center rounded-xl bg-primary/20 text-primary">
               <Bot className="size-4" />
@@ -84,11 +76,18 @@ export function AIChatWidget() {
               href={waLink("مرحباً، عندي سؤال", number)}
               target="_blank"
               rel="noopener noreferrer"
-              className="ml-auto grid size-8 place-items-center rounded-xl bg-[#25D366]/20 text-[#25D366]"
+              className="ms-auto grid size-8 place-items-center rounded-xl bg-[#25D366]/20 text-[#25D366]"
               aria-label="واتساب"
             >
               <MessageCircle className="size-4" />
             </a>
+            <button
+              onClick={() => setOpen(false)}
+              aria-label="إغلاق"
+              className="grid size-8 shrink-0 place-items-center rounded-xl glass"
+            >
+              <X className="size-4" />
+            </button>
           </div>
 
           <div className="flex-1 space-y-2.5 overflow-y-auto px-3 py-3 text-sm">

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { createPortal } from "react-dom";
 import {
   MoreVertical,
   X,
@@ -61,7 +62,7 @@ export function CustomerMenu() {
         <MoreVertical className="size-5" />
       </button>
 
-      {open && (
+      {open && typeof document !== "undefined" && createPortal(
         <div className="fixed inset-0 z-[70] flex items-end justify-center sm:items-center">
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={close} />
           <div className="relative flex max-h-[90vh] w-full flex-col overflow-hidden rounded-t-3xl glass-strong sm:max-w-md sm:rounded-3xl">
@@ -160,10 +161,11 @@ export function CustomerMenu() {
               جميع الحقوق محفوظة © تسوق | Tasawa9
             </div>
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
 
-      {iosGuide && (
+      {iosGuide && typeof document !== "undefined" && createPortal(
         <div className="fixed inset-0 z-[80] flex items-center justify-center p-4">
           <div
             className="absolute inset-0 bg-black/70 backdrop-blur-sm"
@@ -207,7 +209,8 @@ export function CustomerMenu() {
               فهمت
             </button>
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </>
   );

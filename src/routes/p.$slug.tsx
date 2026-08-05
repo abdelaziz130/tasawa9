@@ -12,7 +12,7 @@ import { ShareButtons } from "@/components/ShareButtons";
 import { ProductReviews } from "@/components/ProductReviews";
 import { AppHeader } from "@/components/AppHeader";
 import { WhatsAppFab } from "@/components/WhatsAppFab";
-import { CheckCircle2, Loader2, ShieldCheck, Star, Truck, XCircle } from "lucide-react";
+import { CheckCircle2, Loader2, ShieldCheck, Truck, XCircle } from "lucide-react";
 
 export const Route = createFileRoute("/p/$slug")({
   head: ({ params }) => ({
@@ -179,25 +179,6 @@ function LandingPage() {
           </div>
         </section>
 
-        {c && c.reviews.length > 0 && (
-          <section className="mt-4 space-y-2">
-            <h2 className="px-1 text-sm font-extrabold">آراء الزبائن</h2>
-            {c.reviews.map((r, i) => (
-              <div key={i} className="rounded-2xl glass p-3">
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-bold">{r.name}</span>
-                  <span className="text-[11px] text-muted-foreground">{r.wilaya}</span>
-                  <span className="ml-auto flex">
-                    {Array.from({ length: r.rating }).map((_, n) => (
-                      <Star key={n} className="size-3.5 text-accent" fill="currentColor" />
-                    ))}
-                  </span>
-                </div>
-                <p className="mt-1 text-sm text-muted-foreground">{r.text}</p>
-              </div>
-            ))}
-          </section>
-        )}
 
         <div className="mt-4">
           <ShareButtons product={p} />

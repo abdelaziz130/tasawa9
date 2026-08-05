@@ -7,6 +7,25 @@ type BeforeInstallPromptEvent = Event & {
 
 export type Platform = "ios" | "android" | "desktop";
 
+/**
+ * The browser fires `beforeinstallprompt` very early (often before React mounts),
+ * so we capture and keep it at module level to guarantee 1-click native install.
+ */
+let deferredPrompt: BeforeInstallPromptEvent | null = null;
+const listeners = new Set<(e: BeforeInstallPromptEvent | null) => void>();
+
+if (typeof window !== "undefined") {
+  window.addEventListener("beforeinstallprompt", (e) => {
+    e.preventDefault();
+    deferredPrompt = e as BeforeInstallPromptEvent;
+    listeners.forEach((fn) => fn(deferredPrompt));
+  });
+  window.addEventListener("appinstalled", () => {
+    deferredPrompt = null;
+    listeners.forEach((fn) => fn(null));
+  });
+}
+
 export function detectPlatform(): Platform {
   if (typeof navigator === "undefined") return "desktop";
   const ua = navigator.userAgent;
@@ -34,31 +53,34 @@ export function usePwaInstall() {
   useEffect(() => {
     setPlatform(detectPlatform());
     setInstalled(isStandalone());
-    const onPrompt = (e: Event) => {
-      e.preventDefault();
-      setEvt(e as BeforeInstallPromptEvent);
+    setEvt(deferredPrompt);
+    const onChange = (e: BeforeInstallPromptEvent | null) => {
+      setEvt(e);
+      if (!e) setInstalled(isStandalone());
     };
-    const onInstalled = () => setInstalled(true);
-    window.addEventListener("beforeinstallprompt", onPrompt as EventListener);
-    window.addEventListener("appinstalled", onInstalled);
+    listeners.add(onChange);
     return () => {
-      window.removeEventListener("beforeinstallprompt", onPrompt as EventListener);
-      window.removeEventListener("appinstalled", onInstalled);
+      listeners.delete(onChange);
     };
   }, []);
 
   const install = useCallback(async () => {
-    if (!evt) return "unavailable" as const;
-    await evt.prompt();
-    const { outcome } = await evt.userChoice;
-    setEvt(null);
+    const prompt = evt ?? deferredPrompt;
+    if (!prompt) return "unavailable" as const;
+    await prompt.prompt();
+    const { outcome } = await prompt.userChoice;
+    if (outcome === "accepted") {
+      deferredPrompt = null;
+      setEvt(null);
+      setInstalled(true);
+    }
     return outcome;
   }, [evt]);
 
   return {
     platform,
     installed,
-    /** true when the browser can show a native install prompt */
+    /** true when the browser can show the native install modal */
     canPrompt: !!evt,
     /** iOS needs a manual guide instead of a prompt */
     needsIosGuide: platform === "ios" && !installed,

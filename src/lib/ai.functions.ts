@@ -86,8 +86,9 @@ export const generateLandingPage = createServerFn({ method: "POST" })
 
     const raw = await callAI(
       `أنت خبير صفحات هبوط لمتجر جزائري (الدفع عند الاستلام). أرجع JSON فقط بالشكل:
-{"headline":"...","subheadline":"...","pains":["...","...","..."],"benefits":["...","...","...","..."],"reviews":[{"name":"...","wilaya":"...","rating":5,"text":"..."}],"cta":"..."}
-اكتب بالعربية الجزائرية المقنعة. pains: 3 مشاكل يعاني منها الزبون. benefits: 4 حلول/فوائد. reviews: 3 آراء زبائن قصيرة بأسماء وولايات جزائرية. cta: جملة زر شراء قصيرة.`,
+{"headline":"...","subheadline":"...","pains":["...","...","..."],"benefits":["...","...","...","..."],"cta":"..."}
+اكتب بالعربية الجزائرية المقنعة. pains: 3 مشاكل يعاني منها الزبون. benefits: 4 حلول/فوائد. cta: جملة زر شراء قصيرة.
+ممنوع تماماً اختراع آراء أو تعليقات زبائن.`,
       `المنتج: ${product.title}\nالوصف: ${product.description ?? "—"}\nالسعر: ${product.price} دج\nالقسم: ${product.category ?? "—"}`,
       true,
     );
@@ -107,14 +108,6 @@ export const generateLandingPage = createServerFn({ method: "POST" })
       subheadline: String(parsed["subheadline"] ?? "").trim(),
       pains: asStrings(parsed["pains"]),
       benefits: asStrings(parsed["benefits"]),
-      reviews: Array.isArray(parsed["reviews"])
-        ? (parsed["reviews"] as Record<string, unknown>[]).slice(0, 4).map((r) => ({
-            name: String(r?.["name"] ?? "زبون").trim(),
-            wilaya: String(r?.["wilaya"] ?? "الجزائر").trim(),
-            rating: Math.min(5, Math.max(1, Number(r?.["rating"] ?? 5))),
-            text: String(r?.["text"] ?? "").trim(),
-          }))
-        : [],
       cta: String(parsed["cta"] ?? "اطلب الآن").trim(),
     };
 

@@ -9,6 +9,7 @@ import type { WilayaShipping } from "@/lib/types";
 import { toast } from "sonner";
 import { Home, Building2, Loader2, Truck, Tag, CheckCircle2, XCircle } from "lucide-react";
 import { estimateDelivery } from "@/lib/wilaya-eta";
+import { COMMUNES } from "@/lib/communes";
 import { trackAbandonedCart, clearAbandonedCart } from "@/lib/abandoned-cart";
 
 type DeliveryType = "توصيل للمنزل" | "توصيل لمكتب الشحن";
@@ -61,15 +62,34 @@ export function CheckoutModal({
     staleTime: 60 * 60 * 1000,
   });
 
+  const { data: communeRates } = useQuery({
+    queryKey: ["communes_shipping", wilayaCode],
+    enabled: !!wilayaCode,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("communes_shipping")
+        .select("commune_name,home_fee,desk_fee")
+        .eq("wilaya_code", Number(wilayaCode));
+      if (error) throw error;
+      return (data ?? []) as { commune_name: string; home_fee: number; desk_fee: number }[];
+    },
+    staleTime: 30 * 60 * 1000,
+  });
+
   const selectedWilaya = useMemo(
     () => wilayas?.find((w) => String(w.wilaya_code) === wilayaCode) ?? null,
     [wilayas, wilayaCode],
   );
 
+  const communeRate = useMemo(
+    () => communeRates?.find((c) => c.commune_name === commune) ?? null,
+    [communeRates, commune],
+  );
+
   const shippingFee = selectedWilaya
     ? delivery === "توصيل للمنزل"
-      ? Number(selectedWilaya.home_fee)
-      : Number(selectedWilaya.desk_fee)
+      ? Number(communeRate?.home_fee ?? selectedWilaya.home_fee)
+      : Number(communeRate?.desk_fee ?? selectedWilaya.desk_fee)
     : 0;
 
   const discount = useMemo(() => {
@@ -238,7 +258,10 @@ export function CheckoutModal({
         <Field label="الولاية">
           <select
             value={wilayaCode}
-            onChange={(e) => setWilayaCode(e.target.value)}
+            onChange={(e) => {
+              setWilayaCode(e.target.value);
+              setCommune("");
+            }}
             className="fld"
             required
           >
@@ -251,14 +274,20 @@ export function CheckoutModal({
           </select>
         </Field>
         <Field label="البلدية">
-          <input
+          <select
             value={commune}
             onChange={(e) => setCommune(e.target.value)}
-            maxLength={100}
             className="fld"
-            placeholder="أدخل البلدية"
+            disabled={!wilayaCode}
             required
-          />
+          >
+            <option value="">{wilayaCode ? "اختر البلدية" : "اختر الولاية أولاً"}</option>
+            {(wilayaCode ? (COMMUNES[Number(wilayaCode)] ?? []) : []).map((cn) => (
+              <option key={cn} value={cn}>
+                {cn}
+              </option>
+            ))}
+          </select>
         </Field>
 
         <Field label="خيار التوصيل">

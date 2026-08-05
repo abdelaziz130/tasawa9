@@ -21,7 +21,6 @@ export type LandingContent = {
   subheadline: string;
   pains: string[];
   benefits: string[];
-  reviews: { name: string; wilaya: string; rating: number; text: string }[];
   cta: string;
 };
 

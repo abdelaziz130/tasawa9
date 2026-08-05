@@ -42,13 +42,26 @@ import {
   Download,
   KeyRound,
   ArrowRight,
+  Truck,
+  UserCog,
 } from "lucide-react";
 import { usePwaInstall } from "@/lib/pwa";
+import { DeliveryRatesPanel } from "@/components/admin/DeliveryRatesPanel";
+import { AccountPanel } from "@/components/admin/AccountPanel";
+import { LandingEditor } from "@/components/admin/LandingEditor";
 
 
 const ADMIN_EMAIL = "chaib.aziz2004@gmail.com";
 
-type TabKey = "orders" | "products" | "coupons" | "abandoned" | "staff" | "settings";
+type TabKey =
+  | "orders"
+  | "products"
+  | "coupons"
+  | "abandoned"
+  | "staff"
+  | "settings"
+  | "delivery"
+  | "account";
 type Role = "owner" | "admin" | "sub_admin";
 
 export const Route = createFileRoute("/admin")({
@@ -68,7 +81,9 @@ const TABS: { key: TabKey; label: string; icon: React.ReactNode; ownerOnly?: boo
   { key: "coupons", label: "الأكواد", icon: <Ticket className="size-4" />, ownerOnly: true },
   { key: "abandoned", label: "متروكة", icon: <ShoppingCart className="size-4" />, ownerOnly: true },
   { key: "staff", label: "الموظفون", icon: <Users className="size-4" />, ownerOnly: true },
+  { key: "delivery", label: "التوصيل", icon: <Truck className="size-4" />, ownerOnly: true },
   { key: "settings", label: "الإعدادات", icon: <Settings className="size-4" />, ownerOnly: true },
+  { key: "account", label: "الحساب", icon: <UserCog className="size-4" /> },
 ];
 
 
@@ -183,7 +198,9 @@ function AdminPage() {
           {activeTab === "coupons" && <CouponsPanel />}
           {activeTab === "abandoned" && <AbandonedPanel />}
           {activeTab === "staff" && <StaffPanel />}
+          {activeTab === "delivery" && <DeliveryRatesPanel />}
           {activeTab === "settings" && <SettingsPanel />}
+          {activeTab === "account" && <AccountPanel />}
         </div>
       </div>
     </main>
@@ -216,7 +233,7 @@ function AdminLogin({ loggedIn, blocked }: { loggedIn: boolean; blocked?: boolea
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
-  const [mode, setMode] = useState<"login" | "forgot" | "verify">("login");
+  const [mode, setMode] = useState<"login" | "forgot" | "verify" | "newpass">("login");
   const [resetEmail, setResetEmail] = useState("");
   const [otp, setOtp] = useState("");
   const [resetPass, setResetPass] = useState("");
@@ -289,25 +306,30 @@ function AdminLogin({ loggedIn, blocked }: { loggedIn: boolean; blocked?: boolea
     setMode("verify");
   };
 
-  const verifyAndReset = async (e: React.FormEvent) => {
+  const verifyCode = async (e: React.FormEvent) => {
     e.preventDefault();
     const code = otp.replace(/[^\d]/g, "");
     if (code.length !== 6) return toast.error("الرمز يجب أن يكون 6 أرقام");
-    if (resetPass.length < 6) return toast.error("كلمة المرور قصيرة جداً");
     setBusy(true);
     const { error } = await supabase.auth.verifyOtp({
       email: resetEmail.trim(),
       token: code,
       type: "email",
     });
-    if (error) {
-      setBusy(false);
-      return toast.error("الرمز غير صحيح أو منتهي");
-    }
-    const { error: upErr } = await supabase.auth.updateUser({ password: resetPass });
     setBusy(false);
-    if (upErr) return toast.error(upErr.message);
-    toast.success("تم تحديث كلمة المرور");
+    if (error) return toast.error("الرمز غير صحيح أو منتهي");
+    toast.success("تم التحقق، أدخل كلمة المرور الجديدة");
+    setMode("newpass");
+  };
+
+  const savePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (resetPass.length < 6) return toast.error("كلمة المرور يجب أن تكون 6 أحرف على الأقل");
+    setBusy(true);
+    const { error } = await supabase.auth.updateUser({ password: resetPass });
+    setBusy(false);
+    if (error) return toast.error(error.message);
+    toast.success("تم تحديث كلمة المرور وتسجيل دخولك");
     setOtp("");
     setResetPass("");
     setMode("login");
@@ -325,12 +347,14 @@ function AdminLogin({ loggedIn, blocked }: { loggedIn: boolean; blocked?: boolea
             {mode === "forgot"
               ? "أدخل بريدك لإرسال رمز التحقق"
               : mode === "verify"
-                ? "أدخل الرمز وكلمة المرور الجديدة"
-                : blocked
-                  ? "تم سحب صلاحيات هذا الحساب."
-                  : loggedIn
-                    ? "هذا الحساب لا يملك صلاحية الإدارة."
-                    : "تسجيل الدخول"}
+                ? "أدخل رمز التحقق المكوّن من 6 أرقام"
+                : mode === "newpass"
+                  ? "اختر كلمة المرور الجديدة"
+                  : blocked
+                    ? "تم سحب صلاحيات هذا الحساب."
+                    : loggedIn
+                      ? "هذا الحساب لا يملك صلاحية الإدارة."
+                      : "تسجيل الدخول"}
           </p>
         </div>
 
@@ -402,7 +426,7 @@ function AdminLogin({ loggedIn, blocked }: { loggedIn: boolean; blocked?: boolea
         )}
 
         {mode === "verify" && (
-          <form onSubmit={verifyAndReset} className="space-y-3">
+          <form onSubmit={verifyCode} className="space-y-3">
             <input
               value={otp}
               onChange={(e) => setOtp(e.target.value)}
@@ -413,6 +437,24 @@ function AdminLogin({ loggedIn, blocked }: { loggedIn: boolean; blocked?: boolea
               className="w-full h-12 rounded-xl bg-input border border-white/10 px-4 text-center tracking-[0.4em] outline-none focus:border-primary"
               required
             />
+            <button
+              disabled={busy}
+              className="w-full h-12 rounded-xl btn-primary font-extrabold disabled:opacity-60"
+            >
+              {busy ? "..." : "تحقّق من الرمز"}
+            </button>
+            <button
+              type="button"
+              onClick={() => setMode("forgot")}
+              className="mx-auto flex items-center gap-1 text-xs font-bold text-muted-foreground"
+            >
+              <ArrowRight className="size-3" /> إعادة إرسال الرمز
+            </button>
+          </form>
+        )}
+
+        {mode === "newpass" && (
+          <form onSubmit={savePassword} className="space-y-3">
             <input
               type="password"
               value={resetPass}
@@ -426,17 +468,11 @@ function AdminLogin({ loggedIn, blocked }: { loggedIn: boolean; blocked?: boolea
               disabled={busy}
               className="w-full h-12 rounded-xl btn-primary font-extrabold disabled:opacity-60"
             >
-              {busy ? "..." : "تعيين كلمة المرور"}
-            </button>
-            <button
-              type="button"
-              onClick={() => setMode("forgot")}
-              className="mx-auto flex items-center gap-1 text-xs font-bold text-muted-foreground"
-            >
-              <ArrowRight className="size-3" /> إعادة إرسال الرمز
+              {busy ? "..." : "حفظ وتسجيل الدخول"}
             </button>
           </form>
         )}
+
       </div>
     </main>
   );
@@ -868,6 +904,7 @@ function ProductsPanel({ role }: { role: Role }) {
   const [editing, setEditing] = useState<Product | null>(null);
   const [formOpen, setFormOpen] = useState(false);
   const [landingBusy, setLandingBusy] = useState<string | null>(null);
+  const [landingEdit, setLandingEdit] = useState<Product | null>(null);
   const makeLanding = useServerFn(generateLandingPage);
   const { data, isLoading } = useQuery({
     queryKey: ["products"],
@@ -984,6 +1021,18 @@ function ProductsPanel({ role }: { role: Role }) {
                       صفحة هبوط AI
                     </button>
                     {p.landing_slug ? (
+                      <button
+                        onClick={() => setLandingEdit(p)}
+                        className="h-8 rounded-lg glass text-[11px] font-bold flex items-center justify-center gap-1"
+                      >
+                        <Edit3 className="size-3.5" /> تعديل / تنزيل الصفحة
+                      </button>
+                    ) : (
+                      <span className="h-8 rounded-lg glass text-[11px] text-muted-foreground flex items-center justify-center">
+                        لا توجد صفحة
+                      </span>
+                    )}
+                    {p.landing_slug && (
                       <a
                         href={`/p/${p.landing_slug}`}
                         target="_blank"
@@ -992,10 +1041,6 @@ function ProductsPanel({ role }: { role: Role }) {
                       >
                         <ExternalLink className="size-3.5" /> عرض الصفحة
                       </a>
-                    ) : (
-                      <span className="h-8 rounded-lg glass text-[11px] text-muted-foreground flex items-center justify-center">
-                        لا توجد صفحة
-                      </span>
                     )}
                   </div>
                 )}
@@ -1005,6 +1050,14 @@ function ProductsPanel({ role }: { role: Role }) {
         </ul>
       )}
 
+
+      {landingEdit && (
+        <LandingEditor
+          product={landingEdit}
+          open={!!landingEdit}
+          onClose={() => setLandingEdit(null)}
+        />
+      )}
 
       {formOpen && (
         <ProductForm
@@ -1601,7 +1654,7 @@ function StaffPanel() {
     e.preventDefault();
     setBusy(true);
     try {
-      await create({ data: { email: email.trim(), password, fullName: fullName.trim(), role } });
+      await create({ data: { identifier: email.trim(), password, fullName: fullName.trim(), role } });
       toast.success("تم إضافة الموظف");
       setEmail("");
       setFullName("");
@@ -1655,9 +1708,10 @@ function StaffPanel() {
         <input
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          type="email"
-          placeholder="البريد الإلكتروني"
+          type="text"
+          placeholder="البريد الإلكتروني أو رقم الهاتف"
           className="sinp"
+          dir="ltr"
           required
         />
         <input

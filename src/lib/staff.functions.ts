@@ -11,29 +11,51 @@ function assertOwner(claims: Record<string, unknown> | undefined) {
 /** Create (or attach) a sub-admin employee account. Owner-admin only. */
 export const addStaff = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { email: string; password: string; fullName?: string; role?: "admin" | "sub_admin" }) => {
-    const email = String(input?.email ?? "").trim().toLowerCase();
-    const password = String(input?.password ?? "");
-    const fullName = String(input?.fullName ?? "").trim() || null;
-    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) throw new Error("البريد غير صالح");
-    if (password.length < 6) throw new Error("كلمة المرور يجب أن تكون 6 أحرف على الأقل");
-    const role: "admin" | "sub_admin" = input.role === "admin" ? "admin" : "sub_admin";
-    return { email, password, fullName, role };
-  })
+  .inputValidator(
+    (input: {
+      identifier: string;
+      password: string;
+      fullName?: string;
+      role?: "admin" | "sub_admin";
+    }) => {
+      const raw = String(input?.identifier ?? "").trim();
+      const password = String(input?.password ?? "");
+      const fullName = String(input?.fullName ?? "").trim() || null;
+      if (password.length < 6) throw new Error("كلمة المرور يجب أن تكون 6 أحرف على الأقل");
+      const role: "admin" | "sub_admin" = input.role === "admin" ? "admin" : "sub_admin";
+
+      if (raw.includes("@")) {
+        const email = raw.toLowerCase();
+        if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) throw new Error("البريد غير صالح");
+        return { email, phone: null as string | null, label: email, password, fullName, role };
+      }
+
+      const digits = raw.replace(/[^\d+]/g, "");
+      if (digits.replace(/\D/g, "").length < 9) throw new Error("رقم الهاتف غير صالح");
+      const phone = digits.startsWith("+")
+        ? digits
+        : digits.startsWith("0")
+          ? `+213${digits.slice(1)}`
+          : `+${digits}`;
+      return { email: null as string | null, phone, label: phone, password, fullName, role };
+    },
+  )
   .handler(async ({ data, context }) => {
     assertOwner(context.claims as Record<string, unknown>);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
     let userId: string | null = null;
-    const created = await supabaseAdmin.auth.admin.createUser({
-      email: data.email,
-      password: data.password,
-      email_confirm: true,
-    });
+    const created = await supabaseAdmin.auth.admin.createUser(
+      data.email
+        ? { email: data.email, password: data.password, email_confirm: true }
+        : { phone: data.phone!, password: data.password, phone_confirm: true },
+    );
     if (created.data?.user) userId = created.data.user.id;
     else {
       const { data: list } = await supabaseAdmin.auth.admin.listUsers({ page: 1, perPage: 200 });
-      const found = list?.users?.find((u) => u.email?.toLowerCase() === data.email);
+      const found = list?.users?.find((u) =>
+        data.email ? u.email?.toLowerCase() === data.email : u.phone === data.phone!.replace("+", ""),
+      );
       if (!found) throw new Error(created.error?.message ?? "تعذّر إنشاء الحساب");
       userId = found.id;
       await supabaseAdmin.auth.admin.updateUserById(found.id, { password: data.password });
@@ -44,7 +66,7 @@ export const addStaff = createServerFn({ method: "POST" })
       .upsert(
         {
           user_id: userId,
-          email: data.email,
+          email: data.label,
           full_name: data.fullName,
           role: data.role,
           status: "active",

@@ -50,6 +50,36 @@ export type Database = {
         }
         Relationships: []
       }
+      communes_shipping: {
+        Row: {
+          commune_name: string
+          created_at: string
+          desk_fee: number
+          home_fee: number
+          id: string
+          updated_at: string
+          wilaya_code: number
+        }
+        Insert: {
+          commune_name: string
+          created_at?: string
+          desk_fee?: number
+          home_fee?: number
+          id?: string
+          updated_at?: string
+          wilaya_code: number
+        }
+        Update: {
+          commune_name?: string
+          created_at?: string
+          desk_fee?: number
+          home_fee?: number
+          id?: string
+          updated_at?: string
+          wilaya_code?: number
+        }
+        Relationships: []
+      }
       coupons: {
         Row: {
           active: boolean

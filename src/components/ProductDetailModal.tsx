@@ -32,6 +32,7 @@ export function ProductDetailModal({
       ? Math.round(100 - (Number(product.price) / Number(product.old_price)) * 100)
       : null;
   const lowStock = product.stock > 0 && product.stock <= 5;
+  const maxQty = product.stock > 0 ? product.stock : 0;
   const addToCart = () =>
     add(
       {
@@ -39,8 +40,10 @@ export function ProductDetailModal({
         title: product.title,
         price: Number(product.price),
         image_url: productImages(product)[0] ?? null,
+        stock: product.stock,
+        free_shipping: !!product.free_shipping,
       },
-      qty,
+      Math.min(qty, maxQty || 1),
     );
 
   return (

@@ -106,10 +106,14 @@ export function ProductDetailModal({
               ))}
             </div>
 
-            {product.stock > 0 && (
-              <CountdownTimer
-                target={hasActiveOffer(product) ? product.offer_expires_at : null}
-              />
+            {product.stock > 0 && hasActiveOffer(product) && (
+              <CountdownTimer target={product.offer_expires_at} />
+            )}
+
+            {product.free_shipping && (
+              <div className="inline-flex items-center gap-1.5 rounded-full bg-success/15 px-3 py-1 text-xs font-extrabold text-success">
+                <Truck className="size-3.5" /> توصيل مجاني
+              </div>
             )}
 
             {product.description && (
@@ -137,12 +141,23 @@ export function ProductDetailModal({
                 <span className="w-10 text-center font-bold">{qty}</span>
                 <button
                   type="button"
-                  onClick={() => setQty((q) => Math.min(product.stock || 99, q + 1))}
+                  onClick={() =>
+                    setQty((q) => {
+                      if (maxQty && q >= maxQty) {
+                        toast.error(`المخزون المتوفر حالياً هو ${maxQty} قطع فقط`);
+                        return q;
+                      }
+                      return q + 1;
+                    })
+                  }
                   className="size-9 hover:bg-primary/10"
                 >
                   +
                 </button>
               </div>
+              {maxQty > 0 && (
+                <span className="text-xs text-muted-foreground">المتوفر: {maxQty}</span>
+              )}
             </div>
 
             <div ref={buyRef} className="grid grid-cols-5 gap-2">

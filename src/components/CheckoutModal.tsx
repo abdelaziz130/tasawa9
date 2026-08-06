@@ -86,11 +86,15 @@ export function CheckoutModal({
     [communeRates, commune],
   );
 
-  const shippingFee = selectedWilaya
-    ? delivery === "توصيل للمنزل"
-      ? Number(communeRate?.home_fee ?? selectedWilaya.home_fee)
-      : Number(communeRate?.desk_fee ?? selectedWilaya.desk_fee)
-    : 0;
+  /** every product in the cart marked "free shipping" ⇒ delivery is free */
+  const freeShipping = items.length > 0 && items.every((i) => i.free_shipping);
+
+  const shippingFee =
+    !selectedWilaya || freeShipping
+      ? 0
+      : delivery === "توصيل للمنزل"
+        ? Number(communeRate?.home_fee ?? selectedWilaya.home_fee)
+        : Number(communeRate?.desk_fee ?? selectedWilaya.desk_fee);
 
   const discount = useMemo(() => {
     if (!coupon) return 0;

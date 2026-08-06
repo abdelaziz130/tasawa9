@@ -528,14 +528,45 @@ function StatCard({
   );
 }
 
+type RangeKey = "all" | "month" | "custom";
+
 function OrdersPanel() {
   const qc = useQueryClient();
   const [filter, setFilter] = useState<string>("الكل");
+  const [range, setRange] = useState<RangeKey>("all");
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
   const { data, isLoading } = useOrders();
 
+  const inRange = (iso: string) => {
+    const t = new Date(iso).getTime();
+    if (range === "month") {
+      const now = new Date();
+      const start = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+      return t >= start;
+    }
+    if (range === "custom") {
+      if (from && t < new Date(`${from}T00:00:00`).getTime()) return false;
+      if (to && t > new Date(`${to}T23:59:59`).getTime()) return false;
+    }
+    return true;
+  };
+
   const filtered = useMemo(
-    () => (filter === "الكل" ? data ?? [] : (data ?? []).filter((o) => o.status === filter)),
-    [data, filter],
+    () =>
+      (data ?? [])
+        .filter((o) => inRange(o.created_at))
+        .filter((o) => filter === "الكل" || o.status === filter),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [data, filter, range, from, to],
+  );
+
+  const rangeRevenue = useMemo(
+    () =>
+      filtered
+        .filter((o) => o.status !== "ملغى" && o.status !== "مرفوض")
+        .reduce((s, o) => s + Number(o.total_price), 0),
+    [filtered],
   );
 
   const updateStatus = async (id: string, status: string) => {
@@ -595,6 +626,56 @@ function OrdersPanel() {
 
   return (
     <div className="space-y-3">
+      <div className="rounded-2xl glass p-3 space-y-2.5">
+        <div className="flex flex-wrap gap-2">
+          {(
+            [
+              ["all", "كل المبيعات"],
+              ["month", "مبيعات هذا الشهر"],
+              ["custom", "تحديد فترة"],
+            ] as const
+          ).map(([k, label]) => (
+            <button
+              key={k}
+              onClick={() => setRange(k)}
+              className={`h-8 px-3 rounded-full text-xs font-bold transition ${
+                range === k ? "btn-primary" : "glass text-muted-foreground"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        {range === "custom" && (
+          <div className="grid grid-cols-2 gap-2">
+            <label className="space-y-1">
+              <span className="block text-[10px] font-bold text-muted-foreground">من تاريخ</span>
+              <input
+                type="date"
+                value={from}
+                onChange={(e) => setFrom(e.target.value)}
+                className="h-9 w-full rounded-xl border border-border bg-input px-2 text-xs outline-none focus:border-primary"
+              />
+            </label>
+            <label className="space-y-1">
+              <span className="block text-[10px] font-bold text-muted-foreground">إلى تاريخ</span>
+              <input
+                type="date"
+                value={to}
+                onChange={(e) => setTo(e.target.value)}
+                className="h-9 w-full rounded-xl border border-border bg-input px-2 text-xs outline-none focus:border-primary"
+              />
+            </label>
+          </div>
+        )}
+        <div className="flex items-center justify-between border-t border-border pt-2 text-sm">
+          <span className="text-xs text-muted-foreground">
+            المبيعات ({filtered.length} طلب)
+          </span>
+          <span className="font-extrabold text-primary">{formatDZD(rangeRevenue)}</span>
+        </div>
+      </div>
+
       <div className="flex gap-2 overflow-x-auto pb-1 -mx-3 px-3">
         {(["الكل", ...ORDER_STATUSES] as const).map((s) => (
           <button

@@ -82,7 +82,17 @@ function LandingPage() {
   const subtotal = Number(p.price) * qty;
 
   const buy = () => {
-    add({ id: p.id, title: p.title, price: Number(p.price), image_url: imgs[0] ?? null }, qty);
+    add(
+      {
+        id: p.id,
+        title: p.title,
+        price: Number(p.price),
+        image_url: imgs[0] ?? null,
+        stock: p.stock,
+        free_shipping: !!p.free_shipping,
+      },
+      Math.min(qty, p.stock > 0 ? p.stock : 1),
+    );
     setCheckout(true);
   };
 

@@ -10,6 +10,7 @@ import type { Product } from "@/lib/types";
 import { hasActiveOffer, productImages } from "@/lib/types";
 import { useCart } from "@/lib/cart";
 import { ShieldCheck, Truck, PhoneCall, ShoppingCart, Zap } from "lucide-react";
+import { toast } from "sonner";
 
 export function ProductDetailModal({
   product,
@@ -32,6 +33,7 @@ export function ProductDetailModal({
       ? Math.round(100 - (Number(product.price) / Number(product.old_price)) * 100)
       : null;
   const lowStock = product.stock > 0 && product.stock <= 5;
+  const maxQty = product.stock > 0 ? product.stock : 0;
   const addToCart = () =>
     add(
       {
@@ -39,8 +41,10 @@ export function ProductDetailModal({
         title: product.title,
         price: Number(product.price),
         image_url: productImages(product)[0] ?? null,
+        stock: product.stock,
+        free_shipping: !!product.free_shipping,
       },
-      qty,
+      Math.min(qty, maxQty || 1),
     );
 
   return (
@@ -103,10 +107,14 @@ export function ProductDetailModal({
               ))}
             </div>
 
-            {product.stock > 0 && (
-              <CountdownTimer
-                target={hasActiveOffer(product) ? product.offer_expires_at : null}
-              />
+            {product.stock > 0 && hasActiveOffer(product) && (
+              <CountdownTimer target={product.offer_expires_at} />
+            )}
+
+            {product.free_shipping && (
+              <div className="inline-flex items-center gap-1.5 rounded-full bg-success/15 px-3 py-1 text-xs font-extrabold text-success">
+                <Truck className="size-3.5" /> توصيل مجاني
+              </div>
             )}
 
             {product.description && (
@@ -134,12 +142,23 @@ export function ProductDetailModal({
                 <span className="w-10 text-center font-bold">{qty}</span>
                 <button
                   type="button"
-                  onClick={() => setQty((q) => Math.min(product.stock || 99, q + 1))}
+                  onClick={() =>
+                    setQty((q) => {
+                      if (maxQty && q >= maxQty) {
+                        toast.error(`المخزون المتوفر حالياً هو ${maxQty} قطع فقط`);
+                        return q;
+                      }
+                      return q + 1;
+                    })
+                  }
                   className="size-9 hover:bg-primary/10"
                 >
                   +
                 </button>
               </div>
+              {maxQty > 0 && (
+                <span className="text-xs text-muted-foreground">المتوفر: {maxQty}</span>
+              )}
             </div>
 
             <div ref={buyRef} className="grid grid-cols-5 gap-2">

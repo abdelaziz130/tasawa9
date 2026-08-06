@@ -1,14 +1,9 @@
 import { useEffect, useState } from "react";
 import { Timer } from "lucide-react";
 
-/** Counts down to `target` (ISO string). Falls back to end-of-day when omitted. */
+/** Counts down to `target` (ISO string). Renders nothing without a real admin-set target. */
 export function CountdownTimer({ target }: { target?: string | null }) {
-  const [end] = useState(() => {
-    if (target) return new Date(target).getTime();
-    const d = new Date();
-    d.setHours(23, 59, 59, 999);
-    return d.getTime();
-  });
+  const [end] = useState(() => (target ? new Date(target).getTime() : 0));
   const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {

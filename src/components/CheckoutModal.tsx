@@ -86,11 +86,15 @@ export function CheckoutModal({
     [communeRates, commune],
   );
 
-  const shippingFee = selectedWilaya
-    ? delivery === "توصيل للمنزل"
-      ? Number(communeRate?.home_fee ?? selectedWilaya.home_fee)
-      : Number(communeRate?.desk_fee ?? selectedWilaya.desk_fee)
-    : 0;
+  /** every product in the cart marked "free shipping" ⇒ delivery is free */
+  const freeShipping = items.length > 0 && items.every((i) => i.free_shipping);
+
+  const shippingFee =
+    !selectedWilaya || freeShipping
+      ? 0
+      : delivery === "توصيل للمنزل"
+        ? Number(communeRate?.home_fee ?? selectedWilaya.home_fee)
+        : Number(communeRate?.desk_fee ?? selectedWilaya.desk_fee);
 
   const discount = useMemo(() => {
     if (!coupon) return 0;
@@ -297,14 +301,14 @@ export function CheckoutModal({
               onClick={() => setDelivery("توصيل للمنزل")}
               icon={<Home className="size-4" />}
               label="توصيل للمنزل"
-              fee={selectedWilaya ? Number(selectedWilaya.home_fee) : null}
+              fee={freeShipping ? 0 : selectedWilaya ? Number(selectedWilaya.home_fee) : null}
             />
             <DeliveryOption
               active={delivery === "توصيل لمكتب الشحن"}
               onClick={() => setDelivery("توصيل لمكتب الشحن")}
               icon={<Building2 className="size-4" />}
               label="مكتب الشحن"
-              fee={selectedWilaya ? Number(selectedWilaya.desk_fee) : null}
+              fee={freeShipping ? 0 : selectedWilaya ? Number(selectedWilaya.desk_fee) : null}
             />
           </div>
         </Field>
@@ -361,7 +365,7 @@ export function CheckoutModal({
           )}
           <Row
             label="رسوم التوصيل"
-            value={selectedWilaya ? formatDZD(shippingFee) : "—"}
+            value={freeShipping ? "توصيل مجاني" : selectedWilaya ? formatDZD(shippingFee) : "—"}
           />
           <div className="border-t border-white/10 pt-2 flex items-center justify-between">
             <span className="font-bold">الإجمالي</span>

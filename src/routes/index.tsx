@@ -14,7 +14,6 @@ import { isVisibleInStore, type Product } from "@/lib/types";
 import {
   Loader2,
   PackageSearch,
-  Sparkles,
   SlidersHorizontal,
   ShoppingBag,
   Minus,
@@ -139,7 +138,7 @@ function HomePage() {
                 <div className="text-3xl">🚚</div>
                 <div>
                   <div className="flex items-center gap-1.5 font-extrabold">
-                    <Sparkles className="size-4 text-accent" /> توصيل سريع لجميع الولايات
+                    توصيل سريع لجميع الولايات
                   </div>
                   <div className="text-xs text-muted-foreground">
                     الدفع عند الاستلام في 58 ولاية

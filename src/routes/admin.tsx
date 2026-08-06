@@ -28,7 +28,6 @@ import {
   Lock,
   PhoneCall,
   MessageCircle,
-  Home,
   Printer,
   Ticket,
   ShoppingCart,
@@ -91,7 +90,6 @@ function AdminPage() {
   const [session, setSession] = useState<Session | null>(null);
   const [ready, setReady] = useState(false);
   const [tab, setTab] = useState<TabKey>("orders");
-  const navigate = useNavigate();
 
   useEffect(() => {
     let mounted = true;
@@ -161,13 +159,6 @@ function AdminPage() {
               else await supabase.from("store_settings").insert({ default_theme: id });
             }}
           />
-          <button
-            onClick={() => navigate({ to: "/" })}
-            className="size-10 grid place-items-center rounded-2xl glass hover:bg-primary/10"
-            aria-label="الرئيسية"
-          >
-            <Home className="size-4" />
-          </button>
           <button
             onClick={async () => {
               await supabase.auth.signOut();
@@ -537,14 +528,45 @@ function StatCard({
   );
 }
 
+type RangeKey = "all" | "month" | "custom";
+
 function OrdersPanel() {
   const qc = useQueryClient();
   const [filter, setFilter] = useState<string>("الكل");
+  const [range, setRange] = useState<RangeKey>("all");
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
   const { data, isLoading } = useOrders();
 
+  const inRange = (iso: string) => {
+    const t = new Date(iso).getTime();
+    if (range === "month") {
+      const now = new Date();
+      const start = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+      return t >= start;
+    }
+    if (range === "custom") {
+      if (from && t < new Date(`${from}T00:00:00`).getTime()) return false;
+      if (to && t > new Date(`${to}T23:59:59`).getTime()) return false;
+    }
+    return true;
+  };
+
   const filtered = useMemo(
-    () => (filter === "الكل" ? data ?? [] : (data ?? []).filter((o) => o.status === filter)),
-    [data, filter],
+    () =>
+      (data ?? [])
+        .filter((o) => inRange(o.created_at))
+        .filter((o) => filter === "الكل" || o.status === filter),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [data, filter, range, from, to],
+  );
+
+  const rangeRevenue = useMemo(
+    () =>
+      filtered
+        .filter((o) => o.status !== "ملغى" && o.status !== "مرفوض")
+        .reduce((s, o) => s + Number(o.total_price), 0),
+    [filtered],
   );
 
   const updateStatus = async (id: string, status: string) => {
@@ -604,6 +626,56 @@ function OrdersPanel() {
 
   return (
     <div className="space-y-3">
+      <div className="rounded-2xl glass p-3 space-y-2.5">
+        <div className="flex flex-wrap gap-2">
+          {(
+            [
+              ["all", "كل المبيعات"],
+              ["month", "مبيعات هذا الشهر"],
+              ["custom", "تحديد فترة"],
+            ] as const
+          ).map(([k, label]) => (
+            <button
+              key={k}
+              onClick={() => setRange(k)}
+              className={`h-8 px-3 rounded-full text-xs font-bold transition ${
+                range === k ? "btn-primary" : "glass text-muted-foreground"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        {range === "custom" && (
+          <div className="grid grid-cols-2 gap-2">
+            <label className="space-y-1">
+              <span className="block text-[10px] font-bold text-muted-foreground">من تاريخ</span>
+              <input
+                type="date"
+                value={from}
+                onChange={(e) => setFrom(e.target.value)}
+                className="h-9 w-full rounded-xl border border-border bg-input px-2 text-xs outline-none focus:border-primary"
+              />
+            </label>
+            <label className="space-y-1">
+              <span className="block text-[10px] font-bold text-muted-foreground">إلى تاريخ</span>
+              <input
+                type="date"
+                value={to}
+                onChange={(e) => setTo(e.target.value)}
+                className="h-9 w-full rounded-xl border border-border bg-input px-2 text-xs outline-none focus:border-primary"
+              />
+            </label>
+          </div>
+        )}
+        <div className="flex items-center justify-between border-t border-border pt-2 text-sm">
+          <span className="text-xs text-muted-foreground">
+            المبيعات ({filtered.length} طلب)
+          </span>
+          <span className="font-extrabold text-primary">{formatDZD(rangeRevenue)}</span>
+        </div>
+      </div>
+
       <div className="flex gap-2 overflow-x-auto pb-1 -mx-3 px-3">
         {(["الكل", ...ORDER_STATUSES] as const).map((s) => (
           <button
@@ -676,7 +748,6 @@ function OrdersPanel() {
 
 /** Bordereau preview formatted for Algerian couriers (Yalidine / ZR Express). */
 function ShippingLabelPreview({ order }: { order: Order }) {
-  const items = (order.cart_items ?? []) as CartItemLite[];
   return (
     <div className="rounded-2xl glass p-3 space-y-3">
       <div className="flex items-center justify-between">
@@ -701,16 +772,10 @@ function ShippingLabelPreview({ order }: { order: Order }) {
           </div>
           <div>{order.delivery_type}</div>
         </div>
-        <ul className="border-t border-black/20 pt-1.5 space-y-0.5">
-          {items.map((c, i) => (
-            <li key={i} className="flex justify-between">
-              <span>
-                {c.quantity}× {c.title}
-              </span>
-              <span>{formatDZD(c.price * c.quantity)}</span>
-            </li>
-          ))}
-        </ul>
+        <div className="flex justify-between border-t border-black/20 pt-1.5">
+          <span>رسوم التوصيل</span>
+          <span>{formatDZD(order.shipping_fee ?? 0)}</span>
+        </div>
         <div className="flex justify-between border-t border-black/20 pt-1.5 text-sm font-black">
           <span>الدفع عند الاستلام</span>
           <span>{formatDZD(order.total_price)}</span>
@@ -1374,6 +1439,7 @@ function ProductForm({
   const [oldPrice, setOldPrice] = useState(product?.old_price ? String(product.old_price) : "");
   const [category, setCategory] = useState(product?.category ?? "");
   const [stock, setStock] = useState(product?.stock != null ? String(product.stock) : "0");
+  const [freeShipping, setFreeShipping] = useState(!!product?.free_shipping);
   const [images, setImages] = useState<string[]>(product ? productImages(product) : []);
   const [videoUrl, setVideoUrl] = useState(product?.video_url ?? "");
   const [tags, setTags] = useState<string[]>(product?.tags ?? []);
@@ -1441,6 +1507,7 @@ function ProductForm({
       old_price: oldPrice ? Number(oldPrice) : null,
       category: category.trim() || null,
       stock: Number(stock) || 0,
+      free_shipping: freeShipping,
       image_url: images[0] ?? null,
       images: images.slice(1),
       video_url: videoUrl.trim() || null,
@@ -1604,7 +1671,7 @@ function ProductForm({
             />
           </Fld>
 
-          <Fld label="تاريخ انتهاء العرض (اختياري)">
+          <Fld label="وقت انتهاء العرض (اختياري — يظهر العدّاد فقط إذا حُدّد)">
             <input
               value={offerAt}
               onChange={(e) => setOfferAt(e.target.value)}
@@ -1612,6 +1679,21 @@ function ProductForm({
               className="ainp"
             />
           </Fld>
+
+          <button
+            type="button"
+            onClick={() => setFreeShipping((v) => !v)}
+            className="flex w-full items-center justify-between rounded-xl border border-border bg-input px-3 py-2.5"
+          >
+            <span className="text-sm font-bold">توصيل مجاني</span>
+            <span
+              className={`relative h-6 w-11 rounded-full transition ${freeShipping ? "bg-primary" : "bg-muted"}`}
+            >
+              <span
+                className={`absolute top-0.5 size-5 rounded-full bg-white transition-all ${freeShipping ? "left-0.5" : "left-5"}`}
+              />
+            </span>
+          </button>
 
           <button
             disabled={saving || uploading}

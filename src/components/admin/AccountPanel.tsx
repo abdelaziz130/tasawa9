@@ -6,6 +6,7 @@ import { toast } from "sonner";
 type Pending =
   | { kind: "email"; value: string }
   | { kind: "password"; value: string }
+  | { kind: "phone"; value: string }
   | null;
 
 const inp =
@@ -19,7 +20,11 @@ function normalizePhone(v: string) {
   return `+${digits}`;
 }
 
-/** Account tab: view + update email / phone / password (email & password need an OTP code). */
+/**
+ * Account tab: view + update email / phone / password.
+ * Every change is committed only after a 6-digit OTP code is verified.
+ * Magic / one-time login links are never used.
+ */
 export function AccountPanel() {
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
@@ -34,22 +39,32 @@ export function AccountPanel() {
     supabase.auth.getUser().then(({ data }) => {
       setCurrentEmail(data.user?.email ?? "");
       setEmail(data.user?.email ?? "");
-      setPhone(data.user?.phone ?? "");
+      setPhone(data.user?.phone ? `+${data.user.phone.replace(/^\+/, "")}` : "");
     });
   }, []);
 
-  const sendCode = async (next: Pending) => {
-    if (!currentEmail) return toast.error("لا يوجد بريد مرتبط بالحساب");
+  /** Email + password changes: send a 6-digit re-authentication code (no magic link). */
+  const startSecureChange = async (next: Exclude<Pending, null>) => {
     setBusy(true);
-    const { error } = await supabase.auth.signInWithOtp({
-      email: currentEmail,
-      options: { shouldCreateUser: false },
-    });
+    const { error } = await supabase.auth.reauthenticate();
     setBusy(false);
     if (error) return toast.error(error.message);
     setPending(next);
     setOtp("");
     toast.success("تم إرسال رمز من 6 أرقام إلى بريدك الحالي");
+  };
+
+  /** Phone change: Supabase sends a 6-digit SMS code to the NEW number. */
+  const startPhoneChange = async () => {
+    const p = normalizePhone(phone);
+    if (!p) return toast.error("أدخل رقم هاتف صحيح");
+    setBusy(true);
+    const { error } = await supabase.auth.updateUser({ phone: p });
+    setBusy(false);
+    if (error) return toast.error(error.message);
+    setPending({ kind: "phone", value: p });
+    setOtp("");
+    toast.success("تم إرسال رمز من 6 أرقام إلى الرقم الجديد");
   };
 
   const confirm = async (e: React.FormEvent) => {
@@ -58,39 +73,39 @@ export function AccountPanel() {
     const code = otp.replace(/[^\d]/g, "");
     if (code.length !== 6) return toast.error("الرمز يجب أن يكون 6 أرقام");
     setBusy(true);
-    const { error } = await supabase.auth.verifyOtp({
-      email: currentEmail,
-      token: code,
-      type: "email",
-    });
-    if (error) {
+
+    if (pending.kind === "phone") {
+      const { error } = await supabase.auth.verifyOtp({
+        phone: pending.value,
+        token: code,
+        type: "phone_change",
+      });
       setBusy(false);
-      return toast.error("الرمز غير صحيح أو منتهي");
+      if (error) return toast.error("الرمز غير صحيح أو منتهي");
+      toast.success("تم تحديث رقم الهاتف");
+      setPending(null);
+      setOtp("");
+      return;
     }
+
     const payload =
-      pending.kind === "email" ? { email: pending.value } : { password: pending.value };
-    const { error: upErr } = await supabase.auth.updateUser(payload);
-    setBusy(false);
-    if (upErr) return toast.error(upErr.message);
-    toast.success(
       pending.kind === "email"
-        ? "تم إرسال رابط/رمز تأكيد البريد الجديد"
-        : "تم تحديث كلمة المرور",
+        ? { email: pending.value, nonce: code }
+        : { password: pending.value, nonce: code };
+    const { error } = await supabase.auth.updateUser(payload);
+    setBusy(false);
+    if (error) return toast.error(error.message);
+    toast.success(
+      pending.kind === "email" ? "تم تحديث البريد الإلكتروني" : "تم تحديث كلمة المرور",
     );
+    if (pending.kind === "email") {
+      setEmail(pending.value);
+      setCurrentEmail(pending.value);
+    }
     setPending(null);
     setOtp("");
     setNewEmail("");
     setNewPass("");
-  };
-
-  const savePhone = async () => {
-    const p = normalizePhone(phone);
-    if (!p) return toast.error("أدخل رقم هاتف صحيح");
-    setBusy(true);
-    const { error } = await supabase.auth.updateUser({ phone: p });
-    setBusy(false);
-    if (error) return toast.error(error.message);
-    toast.success("تم تحديث رقم الهاتف");
   };
 
   return (
@@ -116,11 +131,11 @@ export function AccountPanel() {
           className={inp}
         />
         <button
-          onClick={savePhone}
+          onClick={() => void startPhoneChange()}
           disabled={busy}
-          className="h-10 w-full rounded-xl glass text-sm font-extrabold disabled:opacity-60"
+          className="h-10 w-full rounded-xl btn-primary text-sm font-extrabold disabled:opacity-60"
         >
-          حفظ الهاتف
+          إرسال رمز التحقق
         </button>
       </div>
 
@@ -139,7 +154,7 @@ export function AccountPanel() {
         <button
           onClick={() => {
             if (!newEmail.includes("@")) return toast.error("أدخل بريداً صحيحاً");
-            void sendCode({ kind: "email", value: newEmail.trim() });
+            void startSecureChange({ kind: "email", value: newEmail.trim().toLowerCase() });
           }}
           disabled={busy}
           className="h-10 w-full rounded-xl btn-primary text-sm font-extrabold disabled:opacity-60"
@@ -163,7 +178,7 @@ export function AccountPanel() {
         <button
           onClick={() => {
             if (newPass.length < 6) return toast.error("كلمة المرور يجب أن تكون 6 أحرف على الأقل");
-            void sendCode({ kind: "password", value: newPass });
+            void startSecureChange({ kind: "password", value: newPass });
           }}
           disabled={busy}
           className="h-10 w-full rounded-xl btn-primary text-sm font-extrabold disabled:opacity-60"
@@ -175,10 +190,11 @@ export function AccountPanel() {
       {pending && (
         <form onSubmit={confirm} className="rounded-2xl glass p-3 space-y-2">
           <div className="flex items-center gap-1.5 text-sm font-extrabold">
-            <ShieldCheck className="size-4 text-primary" /> تأكيد العملية
+            <ShieldCheck className="size-4 text-primary" /> تأكيد العملية برمز من 6 أرقام
           </div>
           <p className="text-xs text-muted-foreground">
-            أدخل الرمز المُرسل إلى <span dir="ltr">{currentEmail}</span>
+            أدخل الرمز المُرسل إلى{" "}
+            <span dir="ltr">{pending.kind === "phone" ? pending.value : currentEmail}</span>
           </p>
           <input
             value={otp}

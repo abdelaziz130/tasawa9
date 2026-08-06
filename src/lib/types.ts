@@ -13,6 +13,7 @@ export type Product = {
   landing_content: LandingContent | null;
   category: string | null;
   stock: number;
+  free_shipping: boolean;
   created_at: string;
 };
 

@@ -162,13 +162,6 @@ function AdminPage() {
             }}
           />
           <button
-            onClick={() => navigate({ to: "/" })}
-            className="size-10 grid place-items-center rounded-2xl glass hover:bg-primary/10"
-            aria-label="الرئيسية"
-          >
-            <Home className="size-4" />
-          </button>
-          <button
             onClick={async () => {
               await supabase.auth.signOut();
               toast.success("تم تسجيل الخروج");

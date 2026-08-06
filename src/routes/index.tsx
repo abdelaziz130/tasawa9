@@ -14,7 +14,6 @@ import { isVisibleInStore, type Product } from "@/lib/types";
 import {
   Loader2,
   PackageSearch,
-  Sparkles,
   SlidersHorizontal,
   ShoppingBag,
   Minus,

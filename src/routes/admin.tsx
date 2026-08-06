@@ -1365,6 +1365,7 @@ function ProductForm({
   const [oldPrice, setOldPrice] = useState(product?.old_price ? String(product.old_price) : "");
   const [category, setCategory] = useState(product?.category ?? "");
   const [stock, setStock] = useState(product?.stock != null ? String(product.stock) : "0");
+  const [freeShipping, setFreeShipping] = useState(!!product?.free_shipping);
   const [images, setImages] = useState<string[]>(product ? productImages(product) : []);
   const [videoUrl, setVideoUrl] = useState(product?.video_url ?? "");
   const [tags, setTags] = useState<string[]>(product?.tags ?? []);
@@ -1432,6 +1433,7 @@ function ProductForm({
       old_price: oldPrice ? Number(oldPrice) : null,
       category: category.trim() || null,
       stock: Number(stock) || 0,
+      free_shipping: freeShipping,
       image_url: images[0] ?? null,
       images: images.slice(1),
       video_url: videoUrl.trim() || null,
@@ -1595,7 +1597,7 @@ function ProductForm({
             />
           </Fld>
 
-          <Fld label="تاريخ انتهاء العرض (اختياري)">
+          <Fld label="وقت انتهاء العرض (اختياري — يظهر العدّاد فقط إذا حُدّد)">
             <input
               value={offerAt}
               onChange={(e) => setOfferAt(e.target.value)}
@@ -1603,6 +1605,21 @@ function ProductForm({
               className="ainp"
             />
           </Fld>
+
+          <button
+            type="button"
+            onClick={() => setFreeShipping((v) => !v)}
+            className="flex w-full items-center justify-between rounded-xl border border-border bg-input px-3 py-2.5"
+          >
+            <span className="text-sm font-bold">توصيل مجاني</span>
+            <span
+              className={`relative h-6 w-11 rounded-full transition ${freeShipping ? "bg-primary" : "bg-muted"}`}
+            >
+              <span
+                className={`absolute top-0.5 size-5 rounded-full bg-white transition-all ${freeShipping ? "left-0.5" : "left-5"}`}
+              />
+            </span>
+          </button>
 
           <button
             disabled={saving || uploading}

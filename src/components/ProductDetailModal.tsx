@@ -10,6 +10,7 @@ import type { Product } from "@/lib/types";
 import { hasActiveOffer, productImages } from "@/lib/types";
 import { useCart } from "@/lib/cart";
 import { ShieldCheck, Truck, PhoneCall, ShoppingCart, Zap } from "lucide-react";
+import { toast } from "sonner";
 
 export function ProductDetailModal({
   product,

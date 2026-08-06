@@ -169,6 +169,7 @@ export type Database = {
           category: string | null
           created_at: string
           description: string | null
+          free_shipping: boolean
           id: string
           image_url: string | null
           images: Json
@@ -186,6 +187,7 @@ export type Database = {
           category?: string | null
           created_at?: string
           description?: string | null
+          free_shipping?: boolean
           id?: string
           image_url?: string | null
           images?: Json
@@ -203,6 +205,7 @@ export type Database = {
           category?: string | null
           created_at?: string
           description?: string | null
+          free_shipping?: boolean
           id?: string
           image_url?: string | null
           images?: Json

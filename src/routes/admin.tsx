@@ -28,7 +28,6 @@ import {
   Lock,
   PhoneCall,
   MessageCircle,
-  Home,
   Printer,
   Ticket,
   ShoppingCart,

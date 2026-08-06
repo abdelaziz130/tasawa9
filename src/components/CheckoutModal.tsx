@@ -365,7 +365,7 @@ export function CheckoutModal({
           )}
           <Row
             label="رسوم التوصيل"
-            value={selectedWilaya ? formatDZD(shippingFee) : "—"}
+            value={freeShipping ? "توصيل مجاني" : selectedWilaya ? formatDZD(shippingFee) : "—"}
           />
           <div className="border-t border-white/10 pt-2 flex items-center justify-between">
             <span className="font-bold">الإجمالي</span>

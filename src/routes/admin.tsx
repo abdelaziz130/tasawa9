@@ -90,7 +90,6 @@ function AdminPage() {
   const [session, setSession] = useState<Session | null>(null);
   const [ready, setReady] = useState(false);
   const [tab, setTab] = useState<TabKey>("orders");
-  const navigate = useNavigate();
 
   useEffect(() => {
     let mounted = true;

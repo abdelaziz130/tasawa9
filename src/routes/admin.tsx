@@ -748,7 +748,6 @@ function OrdersPanel() {
 
 /** Bordereau preview formatted for Algerian couriers (Yalidine / ZR Express). */
 function ShippingLabelPreview({ order }: { order: Order }) {
-  const items = (order.cart_items ?? []) as CartItemLite[];
   return (
     <div className="rounded-2xl glass p-3 space-y-3">
       <div className="flex items-center justify-between">
@@ -773,16 +772,10 @@ function ShippingLabelPreview({ order }: { order: Order }) {
           </div>
           <div>{order.delivery_type}</div>
         </div>
-        <ul className="border-t border-black/20 pt-1.5 space-y-0.5">
-          {items.map((c, i) => (
-            <li key={i} className="flex justify-between">
-              <span>
-                {c.quantity}× {c.title}
-              </span>
-              <span>{formatDZD(c.price * c.quantity)}</span>
-            </li>
-          ))}
-        </ul>
+        <div className="flex justify-between border-t border-black/20 pt-1.5">
+          <span>رسوم التوصيل</span>
+          <span>{formatDZD(order.shipping_fee ?? 0)}</span>
+        </div>
         <div className="flex justify-between border-t border-black/20 pt-1.5 text-sm font-black">
           <span>الدفع عند الاستلام</span>
           <span>{formatDZD(order.total_price)}</span>

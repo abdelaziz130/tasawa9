@@ -301,7 +301,7 @@ export function CheckoutModal({
               onClick={() => setDelivery("توصيل للمنزل")}
               icon={<Home className="size-4" />}
               label="توصيل للمنزل"
-              fee={selectedWilaya ? Number(selectedWilaya.home_fee) : null}
+              fee={freeShipping ? 0 : selectedWilaya ? Number(selectedWilaya.home_fee) : null}
             />
             <DeliveryOption
               active={delivery === "توصيل لمكتب الشحن"}

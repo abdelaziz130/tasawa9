@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { KeyRound, Loader2, Mail, Phone, ShieldCheck, UserCog } from "lucide-react";
 import { toast } from "sonner";
+import { setMyPhone, syncMyStaffEmail } from "@/lib/account.functions";
 
 type Pending =
   | { kind: "email"; value: string }
@@ -24,6 +25,9 @@ function normalizePhone(v: string) {
  * Account tab: view + update email / phone / password.
  * Every change is committed only after a 6-digit OTP code is verified.
  * Magic / one-time login links are never used.
+ * - Email: Supabase secure email change (old address gets a security notice).
+ * - Phone: 6-digit code sent to the linked EMAIL, then committed server-side.
+ * - Password: re-authentication code sent to the linked email.
  */
 export function AccountPanel() {
   const [email, setEmail] = useState("");
@@ -43,28 +47,43 @@ export function AccountPanel() {
     });
   }, []);
 
-  /** Email + password changes: send a 6-digit re-authentication code (no magic link). */
-  const startSecureChange = async (next: Exclude<Pending, null>) => {
+  /** Password change: send a 6-digit re-authentication code (no magic link). */
+  const startPasswordChange = async (value: string) => {
     setBusy(true);
     const { error } = await supabase.auth.reauthenticate();
     setBusy(false);
     if (error) return toast.error(error.message);
-    setPending(next);
+    setPending({ kind: "password", value });
     setOtp("");
     toast.success("تم إرسال رمز من 6 أرقام إلى بريدك الحالي");
   };
 
-  /** Phone change: Supabase sends a 6-digit SMS code to the NEW number. */
+  /** Email change: Supabase sends a 6-digit code to the NEW email and a notice to the old one. */
+  const startEmailChange = async (value: string) => {
+    setBusy(true);
+    const { error } = await supabase.auth.updateUser({ email: value });
+    setBusy(false);
+    if (error) return toast.error(error.message);
+    setPending({ kind: "email", value });
+    setOtp("");
+    toast.success("تم إرسال رمز من 6 أرقام إلى البريد الجديد، وتنبيه أمني إلى البريد القديم");
+  };
+
+  /** Phone change: 6-digit code sent to the linked EMAIL address. */
   const startPhoneChange = async () => {
     const p = normalizePhone(phone);
     if (!p) return toast.error("أدخل رقم هاتف صحيح");
+    if (!currentEmail) return toast.error("لا يوجد بريد مرتبط بالحساب");
     setBusy(true);
-    const { error } = await supabase.auth.updateUser({ phone: p });
+    const { error } = await supabase.auth.signInWithOtp({
+      email: currentEmail,
+      options: { shouldCreateUser: false },
+    });
     setBusy(false);
     if (error) return toast.error(error.message);
     setPending({ kind: "phone", value: p });
     setOtp("");
-    toast.success("تم إرسال رمز من 6 أرقام إلى الرقم الجديد");
+    toast.success("تم إرسال رمز من 6 أرقام إلى بريدك الإلكتروني");
   };
 
   const confirm = async (e: React.FormEvent) => {
@@ -74,38 +93,45 @@ export function AccountPanel() {
     if (code.length !== 6) return toast.error("الرمز يجب أن يكون 6 أرقام");
     setBusy(true);
 
-    if (pending.kind === "phone") {
-      const { error } = await supabase.auth.verifyOtp({
-        phone: pending.value,
-        token: code,
-        type: "phone_change",
-      });
-      setBusy(false);
-      if (error) return toast.error("الرمز غير صحيح أو منتهي");
-      toast.success("تم تحديث رقم الهاتف");
+    try {
+      if (pending.kind === "phone") {
+        const { error } = await supabase.auth.verifyOtp({
+          email: currentEmail,
+          token: code,
+          type: "email",
+        });
+        if (error) throw new Error("الرمز غير صحيح أو منتهي");
+        const res = await setMyPhone({ data: { phone: pending.value } });
+        setPhone(res.phone);
+        toast.success("تم تحديث رقم الهاتف");
+      } else if (pending.kind === "email") {
+        const { error } = await supabase.auth.verifyOtp({
+          email: pending.value,
+          token: code,
+          type: "email_change",
+        });
+        if (error) throw new Error("الرمز غير صحيح أو منتهي");
+        await syncMyStaffEmail({ data: { email: pending.value } });
+        setEmail(pending.value);
+        setCurrentEmail(pending.value);
+        setNewEmail("");
+        toast.success("تم تحديث البريد الإلكتروني نهائياً");
+      } else {
+        const { error } = await supabase.auth.updateUser({
+          password: pending.value,
+          nonce: code,
+        });
+        if (error) throw new Error(error.message);
+        setNewPass("");
+        toast.success("تم تحديث كلمة المرور");
+      }
       setPending(null);
       setOtp("");
-      return;
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "تعذّر إتمام العملية");
+    } finally {
+      setBusy(false);
     }
-
-    const payload =
-      pending.kind === "email"
-        ? { email: pending.value, nonce: code }
-        : { password: pending.value, nonce: code };
-    const { error } = await supabase.auth.updateUser(payload);
-    setBusy(false);
-    if (error) return toast.error(error.message);
-    toast.success(
-      pending.kind === "email" ? "تم تحديث البريد الإلكتروني" : "تم تحديث كلمة المرور",
-    );
-    if (pending.kind === "email") {
-      setEmail(pending.value);
-      setCurrentEmail(pending.value);
-    }
-    setPending(null);
-    setOtp("");
-    setNewEmail("");
-    setNewPass("");
   };
 
   return (
@@ -135,7 +161,7 @@ export function AccountPanel() {
           disabled={busy}
           className="h-10 w-full rounded-xl btn-primary text-sm font-extrabold disabled:opacity-60"
         >
-          إرسال رمز التحقق
+          إرسال رمز التحقق إلى البريد
         </button>
       </div>
 
@@ -154,7 +180,7 @@ export function AccountPanel() {
         <button
           onClick={() => {
             if (!newEmail.includes("@")) return toast.error("أدخل بريداً صحيحاً");
-            void startSecureChange({ kind: "email", value: newEmail.trim().toLowerCase() });
+            void startEmailChange(newEmail.trim().toLowerCase());
           }}
           disabled={busy}
           className="h-10 w-full rounded-xl btn-primary text-sm font-extrabold disabled:opacity-60"
@@ -178,7 +204,7 @@ export function AccountPanel() {
         <button
           onClick={() => {
             if (newPass.length < 6) return toast.error("كلمة المرور يجب أن تكون 6 أحرف على الأقل");
-            void startSecureChange({ kind: "password", value: newPass });
+            void startPasswordChange(newPass);
           }}
           disabled={busy}
           className="h-10 w-full rounded-xl btn-primary text-sm font-extrabold disabled:opacity-60"
@@ -194,7 +220,7 @@ export function AccountPanel() {
           </div>
           <p className="text-xs text-muted-foreground">
             أدخل الرمز المُرسل إلى{" "}
-            <span dir="ltr">{pending.kind === "phone" ? pending.value : currentEmail}</span>
+            <span dir="ltr">{pending.kind === "email" ? pending.value : currentEmail}</span>
           </p>
           <input
             value={otp}

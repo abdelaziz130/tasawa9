@@ -1,5 +1,6 @@
 import { Link } from "@tanstack/react-router";
-import { Search } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Search, X } from "lucide-react";
 import { ThemeToggle } from "./ThemeToggle";
 import { CustomerMenu } from "./CustomerMenu";
 import { useStoreSettings } from "@/lib/settings";
@@ -14,6 +15,14 @@ export function AppHeader({
   onSearch?: (v: string) => void;
 }) {
   const { data: settings } = useStoreSettings();
+  const [openSearch, setOpenSearch] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (openSearch) inputRef.current?.focus();
+  }, [openSearch]);
+
+
 
 
   return (
@@ -38,15 +47,30 @@ export function AppHeader({
             </div>
           </Link>
           <div className="flex shrink-0 items-center gap-1.5">
+            {onSearch && (
+              <button
+                onClick={() => {
+                  const next = !openSearch;
+                  setOpenSearch(next);
+                  if (!next) onSearch("");
+                }}
+                aria-label="بحث"
+                aria-expanded={openSearch}
+                className="grid size-10 place-items-center rounded-2xl glass hover:bg-primary/10 transition"
+              >
+                {openSearch ? <X className="size-5" /> : <Search className="size-5" />}
+              </button>
+            )}
             <ThemeToggle />
             <CustomerMenu />
           </div>
 
         </div>
-        {onSearch && (
+        {onSearch && openSearch && (
           <div className="mt-3 relative">
             <Search className="absolute right-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
             <input
+              ref={inputRef}
               value={search ?? ""}
               onChange={(e) => onSearch(e.target.value)}
               placeholder="ابحث عن منتج..."

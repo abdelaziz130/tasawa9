@@ -118,7 +118,7 @@ export function SocialProof() {
   const items = [...batch, ...batch];
 
   return (
-    <div className="pointer-events-none fixed inset-x-3 bottom-[92px] z-40 mx-auto max-w-md lg:max-w-3xl">
+    <div className="pointer-events-none fixed inset-x-3 top-[84px] z-40 mx-auto max-w-md lg:max-w-3xl">
       <div className="pointer-events-auto flex items-center gap-2 overflow-hidden rounded-full glass-strong px-2 py-1.5 shadow-xl ring-1 ring-primary/25">
         <span className="grid size-7 shrink-0 place-items-center rounded-full bg-primary/15 text-primary">
           <ShoppingBag className="size-3.5" />

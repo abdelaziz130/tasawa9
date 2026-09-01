@@ -1,5 +1,6 @@
 import { Link } from "@tanstack/react-router";
-import { Search } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Search, X } from "lucide-react";
 import { ThemeToggle } from "./ThemeToggle";
 import { CustomerMenu } from "./CustomerMenu";
 import { useStoreSettings } from "@/lib/settings";
@@ -14,6 +15,14 @@ export function AppHeader({
   onSearch?: (v: string) => void;
 }) {
   const { data: settings } = useStoreSettings();
+  const [openSearch, setOpenSearch] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (openSearch) inputRef.current?.focus();
+  }, [openSearch]);
+
+
 
 
   return (

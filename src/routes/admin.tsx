@@ -483,23 +483,124 @@ function useOrders() {
   });
 }
 
-function StatsCards() {
-  const { data } = useOrders();
-  const orders = data ?? [];
-  const total = orders
-    .filter((o) => o.status !== "ملغى")
-    .reduce((s, o) => s + Number(o.total_price), 0);
-  const pending = orders.filter((o) => o.status === "جديد").length;
-  const completed = orders.filter((o) => o.status === "تم التسليم").length;
+/** Statuses that count as an admin-approved (confirmed) sale. */
+const APPROVED_STATUSES = ["مؤكد", "قيد الشحن", "تم التسليم"] as const;
+
+/** Sales analytics: approved orders only, with week / month / custom filters. */
+function SalesPanel() {
+  const { data, isLoading } = useOrders();
+  const [range, setRange] = useState<"week" | "month" | "custom">("week");
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
+
+  const approved = useMemo(() => {
+    const list = (data ?? []).filter((o) =>
+      (APPROVED_STATUSES as readonly string[]).includes(o.status),
+    );
+    const now = new Date();
+    return list.filter((o) => {
+      const t = new Date(o.created_at).getTime();
+      if (range === "week") {
+        const start = new Date(now);
+        start.setDate(now.getDate() - ((now.getDay() + 6) % 7));
+        start.setHours(0, 0, 0, 0);
+        return t >= start.getTime();
+      }
+      if (range === "month") {
+        return t >= new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+      }
+      if (from && t < new Date(`${from}T00:00:00`).getTime()) return false;
+      if (to && t > new Date(`${to}T23:59:59`).getTime()) return false;
+      return true;
+    });
+  }, [data, range, from, to]);
+
+  const revenue = approved.reduce((s, o) => s + Number(o.total_price), 0);
+  const delivered = approved.filter((o) => o.status === "تم التسليم").length;
+
   return (
-    <div className="grid grid-cols-3 gap-2">
-      <StatCard icon={<DollarSign className="size-4" />} label="المبيعات" value={formatDZD(total)} />
-      <StatCard icon={<Package className="size-4" />} label="جديدة" value={String(pending)} accent />
-      <StatCard
-        icon={<ShoppingBag className="size-4" />}
-        label="مكتملة"
-        value={String(completed)}
-      />
+    <div className="space-y-3">
+      <div className="rounded-2xl glass p-3 space-y-2.5">
+        <div className="flex flex-wrap gap-2">
+          {(
+            [
+              ["week", "هذا الأسبوع"],
+              ["month", "هذا الشهر"],
+              ["custom", "تحديد فترة"],
+            ] as const
+          ).map(([k, label]) => (
+            <button
+              key={k}
+              onClick={() => setRange(k)}
+              className={`h-8 px-3 rounded-full text-xs font-bold transition ${
+                range === k ? "btn-primary" : "glass text-muted-foreground"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        {range === "custom" && (
+          <div className="grid grid-cols-2 gap-2">
+            <label className="space-y-1">
+              <span className="block text-[10px] font-bold text-muted-foreground">من تاريخ</span>
+              <input
+                type="date"
+                value={from}
+                onChange={(e) => setFrom(e.target.value)}
+                className="h-9 w-full rounded-xl border border-border bg-input px-2 text-xs outline-none focus:border-primary"
+              />
+            </label>
+            <label className="space-y-1">
+              <span className="block text-[10px] font-bold text-muted-foreground">إلى تاريخ</span>
+              <input
+                type="date"
+                value={to}
+                onChange={(e) => setTo(e.target.value)}
+                className="h-9 w-full rounded-xl border border-border bg-input px-2 text-xs outline-none focus:border-primary"
+              />
+            </label>
+          </div>
+        )}
+        <p className="border-t border-border pt-2 text-[11px] text-muted-foreground">
+          تُحسب المبيعات من الطلبات المقبولة من الإدارة فقط.
+        </p>
+      </div>
+
+      <div className="grid grid-cols-3 gap-2">
+        <StatCard
+          icon={<DollarSign className="size-4" />}
+          label="إجمالي المبيعات"
+          value={formatDZD(revenue)}
+          accent
+        />
+        <StatCard
+          icon={<ShoppingBag className="size-4" />}
+          label="طلبات مقبولة"
+          value={String(approved.length)}
+        />
+        <StatCard icon={<Package className="size-4" />} label="تم التسليم" value={String(delivered)} />
+      </div>
+
+      <div className="rounded-2xl glass divide-y divide-border">
+        {isLoading && <div className="p-3 text-xs text-muted-foreground">جارٍ التحميل…</div>}
+        {!isLoading && approved.length === 0 && (
+          <div className="p-3 text-xs text-muted-foreground">لا مبيعات في هذه الفترة</div>
+        )}
+        {approved.map((o) => (
+          <div key={o.id} className="flex items-center justify-between gap-2 p-3 text-xs">
+            <div className="min-w-0">
+              <div className="truncate font-bold">{o.customer_name}</div>
+              <div className="text-muted-foreground">
+                {o.wilaya} • {new Date(o.created_at).toLocaleDateString("ar-DZ")}
+              </div>
+            </div>
+            <div className="shrink-0 font-extrabold text-primary">
+              {formatDZD(Number(o.total_price))}
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

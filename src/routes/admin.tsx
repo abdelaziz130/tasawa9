@@ -626,55 +626,7 @@ function OrdersPanel() {
 
   return (
     <div className="space-y-3">
-      <div className="rounded-2xl glass p-3 space-y-2.5">
-        <div className="flex flex-wrap gap-2">
-          {(
-            [
-              ["all", "كل المبيعات"],
-              ["month", "مبيعات هذا الشهر"],
-              ["custom", "تحديد فترة"],
-            ] as const
-          ).map(([k, label]) => (
-            <button
-              key={k}
-              onClick={() => setRange(k)}
-              className={`h-8 px-3 rounded-full text-xs font-bold transition ${
-                range === k ? "btn-primary" : "glass text-muted-foreground"
-              }`}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-        {range === "custom" && (
-          <div className="grid grid-cols-2 gap-2">
-            <label className="space-y-1">
-              <span className="block text-[10px] font-bold text-muted-foreground">من تاريخ</span>
-              <input
-                type="date"
-                value={from}
-                onChange={(e) => setFrom(e.target.value)}
-                className="h-9 w-full rounded-xl border border-border bg-input px-2 text-xs outline-none focus:border-primary"
-              />
-            </label>
-            <label className="space-y-1">
-              <span className="block text-[10px] font-bold text-muted-foreground">إلى تاريخ</span>
-              <input
-                type="date"
-                value={to}
-                onChange={(e) => setTo(e.target.value)}
-                className="h-9 w-full rounded-xl border border-border bg-input px-2 text-xs outline-none focus:border-primary"
-              />
-            </label>
-          </div>
-        )}
-        <div className="flex items-center justify-between border-t border-border pt-2 text-sm">
-          <span className="text-xs text-muted-foreground">
-            المبيعات ({filtered.length} طلب)
-          </span>
-          <span className="font-extrabold text-primary">{formatDZD(rangeRevenue)}</span>
-        </div>
-      </div>
+
 
       <div className="flex gap-2 overflow-x-auto pb-1 -mx-3 px-3">
         {(["الكل", ...ORDER_STATUSES] as const).map((s) => (

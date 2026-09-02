@@ -105,7 +105,8 @@ function AdminPage() {
         setTab("settings");
       }
     } catch {}
-  }, []);
+  }, [session]);
+
 
 
   useEffect(() => {

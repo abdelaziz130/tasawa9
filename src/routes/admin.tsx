@@ -171,8 +171,6 @@ function AdminPage() {
         </div>
       </div>
 
-      {!isStaffOnly && <StatsCards />}
-
       <div className="mt-4 lg:grid lg:grid-cols-[220px_minmax(0,1fr)] lg:gap-5">
         <nav className="grid grid-cols-4 gap-1 rounded-2xl glass p-1 lg:sticky lg:top-4 lg:h-fit lg:grid-cols-1 lg:gap-1.5 lg:p-2">
           {visibleTabs.map((t) => (

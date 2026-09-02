@@ -14,6 +14,8 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import { SettingsMenu } from "@/components/SettingsMenu";
 import { generateProductCopy, generateLandingPage } from "@/lib/ai.functions";
 import { addStaff, removeStaff, setStaffStatus } from "@/lib/staff.functions";
+import { emergencyAdminLogin } from "@/lib/account.functions";
+
 import {
   Package,
   ShoppingBag,

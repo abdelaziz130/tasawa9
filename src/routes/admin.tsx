@@ -77,6 +77,7 @@ export const Route = createFileRoute("/admin")({
 
 const TABS: { key: TabKey; label: string; icon: React.ReactNode; ownerOnly?: boolean }[] = [
   { key: "orders", label: "الطلبات", icon: <ShoppingBag className="size-4" /> },
+  { key: "sales", label: "المبيعات", icon: <DollarSign className="size-4" />, ownerOnly: true },
   { key: "products", label: "المنتجات", icon: <Package className="size-4" /> },
   { key: "coupons", label: "الأكواد", icon: <Ticket className="size-4" />, ownerOnly: true },
   { key: "abandoned", label: "متروكة", icon: <ShoppingCart className="size-4" />, ownerOnly: true },

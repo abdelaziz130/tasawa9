@@ -1,68 +1,133 @@
 import { createServerFn } from "@tanstack/react-start";
+import { createClient } from "@supabase/supabase-js";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
 const ADMIN_EMAIL = "chaib.aziz2004@gmail.com";
 const EMERGENCY_CODE = "652004";
 
-/** Commit a new phone number for the signed-in staff member (after email-OTP verification). */
-export const setMyPhone = createServerFn({ method: "POST" })
+function normalizePhone(v: string) {
+  const digits = String(v ?? "").replace(/[^\d+]/g, "");
+  if (!digits) return "";
+  if (digits.startsWith("+")) return digits;
+  if (digits.startsWith("0")) return `+213${digits.slice(1)}`;
+  return `+${digits}`;
+}
+
+const onlyDigits = (v: string) => String(v ?? "").replace(/\D/g, "");
+
+/** Publishable (anon) client used only to verify a password by signing in. */
+function publicClient() {
+  const key = process.env["SUPABASE_PUBLISHABLE_KEY"] ?? process.env["SUPABASE_ANON_KEY"]!;
+  return createClient(process.env["SUPABASE_URL"]!, key, {
+    auth: { persistSession: false, autoRefreshToken: false },
+    global: {
+      fetch: (input, init) => {
+        const h = new Headers(init?.headers);
+        if (key.startsWith("sb_") && h.get("Authorization") === `Bearer ${key}`) h.delete("Authorization");
+        h.set("apikey", key);
+        return fetch(input, { ...init, headers: h });
+      },
+    },
+  });
+}
+
+/** Update the signed-in staff member's email after verifying the current one. */
+export const updateMyEmail = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { phone: string }) => {
-    const digits = String(input?.phone ?? "").replace(/[^\d+]/g, "");
-    if (digits.replace(/\D/g, "").length < 9) throw new Error("رقم الهاتف غير صالح");
-    const phone = digits.startsWith("+")
-      ? digits
-      : digits.startsWith("0")
-        ? `+213${digits.slice(1)}`
-        : `+${digits}`;
-    return { phone };
+  .inputValidator((input: { currentEmail: string; newEmail: string; confirmEmail: string }) => {
+    const currentEmail = String(input?.currentEmail ?? "").trim().toLowerCase();
+    const newEmail = String(input?.newEmail ?? "").trim().toLowerCase();
+    const confirmEmail = String(input?.confirmEmail ?? "").trim().toLowerCase();
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(newEmail)) throw new Error("البريد الجديد غير صالح");
+    if (newEmail !== confirmEmail) throw new Error("البريد الجديد وتأكيده غير متطابقين");
+    return { currentEmail, newEmail };
   })
   .handler(async ({ data, context }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: me } = await supabaseAdmin.auth.admin.getUserById(context.userId);
+    const saved = (me?.user?.email ?? "").toLowerCase();
+    if (!saved || saved !== data.currentEmail) throw new Error("البريد الحالي غير صحيح");
+
     const { error } = await supabaseAdmin.auth.admin.updateUserById(context.userId, {
-      phone: data.phone,
+      email: data.newEmail,
+      email_confirm: true,
+    });
+    if (error) throw new Error(error.message);
+
+    await supabaseAdmin.from("user_roles").update({ email: data.newEmail }).eq("user_id", context.userId);
+
+    const { data: fresh } = await supabaseAdmin.auth.admin.getUserById(context.userId);
+    if ((fresh?.user?.email ?? "").toLowerCase() !== data.newEmail) {
+      throw new Error("تعذّر حفظ البريد الإلكتروني، حاول مرة أخرى");
+    }
+    return { ok: true, email: data.newEmail };
+  });
+
+/** Update the signed-in staff member's phone after verifying the current one. */
+export const updateMyPhone = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { currentPhone: string; newPhone: string; confirmPhone: string }) => {
+    const newPhone = normalizePhone(input?.newPhone ?? "");
+    const confirmPhone = normalizePhone(input?.confirmPhone ?? "");
+    if (onlyDigits(newPhone).length < 9) throw new Error("رقم الهاتف الجديد غير صالح");
+    if (newPhone !== confirmPhone) throw new Error("الرقم الجديد وتأكيده غير متطابقين");
+    return { currentPhone: normalizePhone(input?.currentPhone ?? ""), newPhone };
+  })
+  .handler(async ({ data, context }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: me } = await supabaseAdmin.auth.admin.getUserById(context.userId);
+    const saved = onlyDigits(me?.user?.phone ?? "");
+    // When a phone is already linked, the provided current value must match it.
+    if (saved && saved !== onlyDigits(data.currentPhone)) throw new Error("رقم الهاتف الحالي غير صحيح");
+
+    const { error } = await supabaseAdmin.auth.admin.updateUserById(context.userId, {
+      phone: data.newPhone,
       phone_confirm: true,
     });
     if (error) throw new Error(error.message);
-    // Read back from Auth so the caller can trust the persisted value.
+
     const { data: fresh } = await supabaseAdmin.auth.admin.getUserById(context.userId);
-    const saved = fresh?.user?.phone ? `+${String(fresh.user.phone).replace(/^\+/, "")}` : "";
-    if (saved.replace(/\D/g, "") !== data.phone.replace(/\D/g, "")) {
-      throw new Error("تعذّر حفظ رقم الهاتف، حاول مرة أخرى");
-    }
-    return { ok: true, phone: saved };
+    const now = onlyDigits(fresh?.user?.phone ?? "");
+    if (now !== onlyDigits(data.newPhone)) throw new Error("تعذّر حفظ رقم الهاتف، حاول مرة أخرى");
+    return { ok: true, phone: `+${now}` };
   });
 
-/** Keep the staff directory row in sync after an auth email change. */
-export const syncMyStaffEmail = createServerFn({ method: "POST" })
+/** Update the signed-in staff member's password after verifying the current one. */
+export const updateMyPassword = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { email: string }) => {
-    const email = String(input?.email ?? "")
-      .trim()
-      .toLowerCase();
-    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) throw new Error("البريد غير صالح");
-    return { email };
+  .inputValidator((input: { currentPassword: string; newPassword: string; confirmPassword: string }) => {
+    const currentPassword = String(input?.currentPassword ?? "");
+    const newPassword = String(input?.newPassword ?? "");
+    const confirmPassword = String(input?.confirmPassword ?? "");
+    if (newPassword.length < 6) throw new Error("كلمة المرور الجديدة يجب أن تكون 6 أحرف على الأقل");
+    if (newPassword !== confirmPassword) throw new Error("كلمة المرور الجديدة وتأكيدها غير متطابقين");
+    if (!currentPassword) throw new Error("أدخل كلمة المرور الحالية");
+    return { currentPassword, newPassword };
   })
   .handler(async ({ data, context }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { error: authErr } = await supabaseAdmin.auth.admin.updateUserById(context.userId, {
-      email: data.email,
-      email_confirm: true,
+    const { data: me } = await supabaseAdmin.auth.admin.getUserById(context.userId);
+    const email = me?.user?.email ?? "";
+    const phone = me?.user?.phone ?? "";
+
+    const anon = publicClient();
+    const attempt = email
+      ? await anon.auth.signInWithPassword({ email, password: data.currentPassword })
+      : await anon.auth.signInWithPassword({ phone: `+${onlyDigits(phone)}`, password: data.currentPassword });
+    if (attempt.error || !attempt.data?.user) throw new Error("كلمة المرور الحالية غير صحيحة");
+
+    const { error } = await supabaseAdmin.auth.admin.updateUserById(context.userId, {
+      password: data.newPassword,
     });
-    if (authErr) throw new Error(authErr.message);
+    if (error) throw new Error(error.message);
 
-    const { error: roleErr } = await supabaseAdmin
-      .from("user_roles")
-      .update({ email: data.email })
-      .eq("user_id", context.userId);
-    if (roleErr) throw new Error(roleErr.message);
-
-    const { data: fresh } = await supabaseAdmin.auth.admin.getUserById(context.userId);
-    const saved = (fresh?.user?.email ?? "").toLowerCase();
-    if (saved !== data.email) throw new Error("تعذّر حفظ البريد الإلكتروني، حاول مرة أخرى");
-    return { ok: true, email: saved };
+    // Confirm the new password actually works before reporting success.
+    const verify = email
+      ? await anon.auth.signInWithPassword({ email, password: data.newPassword })
+      : await anon.auth.signInWithPassword({ phone: `+${onlyDigits(phone)}`, password: data.newPassword });
+    if (verify.error) throw new Error("تعذّر حفظ كلمة المرور، حاول مرة أخرى");
+    return { ok: true };
   });
-
 
 /**
  * Emergency admin access: exchanging the emergency code for a one-time

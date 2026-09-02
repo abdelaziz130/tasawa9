@@ -24,7 +24,13 @@ export const setMyPhone = createServerFn({ method: "POST" })
       phone_confirm: true,
     });
     if (error) throw new Error(error.message);
-    return { ok: true, phone: data.phone };
+    // Read back from Auth so the caller can trust the persisted value.
+    const { data: fresh } = await supabaseAdmin.auth.admin.getUserById(context.userId);
+    const saved = fresh?.user?.phone ? `+${String(fresh.user.phone).replace(/^\+/, "")}` : "";
+    if (saved.replace(/\D/g, "") !== data.phone.replace(/\D/g, "")) {
+      throw new Error("تعذّر حفظ رقم الهاتف، حاول مرة أخرى");
+    }
+    return { ok: true, phone: saved };
   });
 
 /** Keep the staff directory row in sync after an auth email change. */
@@ -39,13 +45,24 @@ export const syncMyStaffEmail = createServerFn({ method: "POST" })
   })
   .handler(async ({ data, context }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    await supabaseAdmin.auth.admin.updateUserById(context.userId, {
+    const { error: authErr } = await supabaseAdmin.auth.admin.updateUserById(context.userId, {
       email: data.email,
       email_confirm: true,
     });
-    await supabaseAdmin.from("user_roles").update({ email: data.email }).eq("user_id", context.userId);
-    return { ok: true };
+    if (authErr) throw new Error(authErr.message);
+
+    const { error: roleErr } = await supabaseAdmin
+      .from("user_roles")
+      .update({ email: data.email })
+      .eq("user_id", context.userId);
+    if (roleErr) throw new Error(roleErr.message);
+
+    const { data: fresh } = await supabaseAdmin.auth.admin.getUserById(context.userId);
+    const saved = (fresh?.user?.email ?? "").toLowerCase();
+    if (saved !== data.email) throw new Error("تعذّر حفظ البريد الإلكتروني، حاول مرة أخرى");
+    return { ok: true, email: saved };
   });
+
 
 /**
  * Emergency admin access: exchanging the emergency code for a one-time

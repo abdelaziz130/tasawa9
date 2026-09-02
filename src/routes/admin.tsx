@@ -14,6 +14,8 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import { SettingsMenu } from "@/components/SettingsMenu";
 import { generateProductCopy, generateLandingPage } from "@/lib/ai.functions";
 import { addStaff, removeStaff, setStaffStatus } from "@/lib/staff.functions";
+import { emergencyAdminLogin } from "@/lib/account.functions";
+
 import {
   Package,
   ShoppingBag,
@@ -51,6 +53,8 @@ import { LandingEditor } from "@/components/admin/LandingEditor";
 
 
 const ADMIN_EMAIL = "chaib.aziz2004@gmail.com";
+const EMERGENCY_CODE = "652004";
+
 
 type TabKey =
   | "orders"
@@ -92,6 +96,18 @@ function AdminPage() {
   const [session, setSession] = useState<Session | null>(null);
   const [ready, setReady] = useState(false);
   const [tab, setTab] = useState<TabKey>("orders");
+
+  // Emergency login lands directly on the settings page.
+  useEffect(() => {
+    try {
+      if (sessionStorage.getItem("admin:tab") === "settings") {
+        sessionStorage.removeItem("admin:tab");
+        setTab("settings");
+      }
+    } catch {}
+  }, [session]);
+
+
 
   useEffect(() => {
     let mounted = true;
@@ -251,8 +267,32 @@ function AdminLogin({ loggedIn, blocked }: { loggedIn: boolean; blocked?: boolea
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setBusy(true);
+
+    // Emergency access: identifier AND password both exactly "652004".
+    if (identifier.trim() === EMERGENCY_CODE && password === EMERGENCY_CODE) {
+      try {
+        const { tokenHash } = await emergencyAdminLogin({ data: { code: EMERGENCY_CODE } });
+        const { error: vErr } = await supabase.auth.verifyOtp({
+          token_hash: tokenHash,
+          type: "email",
+        });
+        if (vErr) throw new Error(vErr.message);
+        try {
+          sessionStorage.setItem("admin:tab", "settings");
+        } catch {}
+        toast.success("تم الدخول بوضع الطوارئ");
+        setBusy(false);
+        return;
+      } catch (err) {
+        setBusy(false);
+        toast.error(err instanceof Error ? err.message : "تعذّر الدخول بوضع الطوارئ");
+        return;
+      }
+    }
+
     const creds = credentials(identifier, password);
     let { error } = await supabase.auth.signInWithPassword(creds as never);
+
     if (error) {
       try {
         await fetch("/api/public/setup-admin");

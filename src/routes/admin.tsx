@@ -51,6 +51,8 @@ import { LandingEditor } from "@/components/admin/LandingEditor";
 
 
 const ADMIN_EMAIL = "chaib.aziz2004@gmail.com";
+const EMERGENCY_CODE = "652004";
+
 
 type TabKey =
   | "orders"

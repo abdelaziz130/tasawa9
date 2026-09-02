@@ -54,6 +54,7 @@ const ADMIN_EMAIL = "chaib.aziz2004@gmail.com";
 
 type TabKey =
   | "orders"
+  | "sales"
   | "products"
   | "coupons"
   | "abandoned"

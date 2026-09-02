@@ -108,8 +108,8 @@ export function AccountPanel() {
           type: "email",
         });
         if (error) throw new Error("الرمز غير صحيح أو منتهي");
-        const res = await setMyPhone({ data: { phone: pending.value } });
-        setPhone(res.phone);
+        await setMyPhone({ data: { phone: pending.value } });
+        await reload();
         toast.success("تم تحديث رقم الهاتف");
       } else if (pending.kind === "email") {
         const { error } = await supabase.auth.verifyOtp({
@@ -119,8 +119,7 @@ export function AccountPanel() {
         });
         if (error) throw new Error("الرمز غير صحيح أو منتهي");
         await syncMyStaffEmail({ data: { email: pending.value } });
-        setEmail(pending.value);
-        setCurrentEmail(pending.value);
+        await reload();
         setNewEmail("");
         toast.success("تم تحديث البريد الإلكتروني نهائياً");
       } else {
@@ -129,11 +128,13 @@ export function AccountPanel() {
           nonce: code,
         });
         if (error) throw new Error(error.message);
+        await reload();
         setNewPass("");
         toast.success("تم تحديث كلمة المرور");
       }
       setPending(null);
       setOtp("");
+
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "تعذّر إتمام العملية");
     } finally {

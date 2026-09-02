@@ -185,6 +185,7 @@ function AdminPage() {
 
         <div className="mt-3 lg:mt-0">
           {activeTab === "orders" && <OrdersPanel />}
+          {activeTab === "sales" && <SalesPanel />}
           {activeTab === "products" && <ProductsPanel role={role} />}
           {activeTab === "coupons" && <CouponsPanel />}
           {activeTab === "abandoned" && <AbandonedPanel />}

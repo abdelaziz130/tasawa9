@@ -39,13 +39,20 @@ export function AccountPanel() {
   const [otp, setOtp] = useState("");
   const [busy, setBusy] = useState(false);
 
+  /** Re-read the authoritative values from the Auth server (never from local state). */
+  const reload = async () => {
+    await supabase.auth.refreshSession().catch(() => {});
+    const { data } = await supabase.auth.getUser();
+    const e = data.user?.email ?? "";
+    setCurrentEmail(e);
+    setEmail(e);
+    setPhone(data.user?.phone ? `+${data.user.phone.replace(/^\+/, "")}` : "");
+  };
+
   useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => {
-      setCurrentEmail(data.user?.email ?? "");
-      setEmail(data.user?.email ?? "");
-      setPhone(data.user?.phone ? `+${data.user.phone.replace(/^\+/, "")}` : "");
-    });
+    void reload();
   }, []);
+
 
   /** Password change: send a 6-digit re-authentication code (no magic link). */
   const startPasswordChange = async (value: string) => {

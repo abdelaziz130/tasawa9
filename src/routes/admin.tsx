@@ -97,6 +97,17 @@ function AdminPage() {
   const [ready, setReady] = useState(false);
   const [tab, setTab] = useState<TabKey>("orders");
 
+  // Emergency login lands directly on the settings page.
+  useEffect(() => {
+    try {
+      if (sessionStorage.getItem("admin:tab") === "settings") {
+        sessionStorage.removeItem("admin:tab");
+        setTab("settings");
+      }
+    } catch {}
+  }, []);
+
+
   useEffect(() => {
     let mounted = true;
     supabase.auth.getSession().then(({ data }) => {

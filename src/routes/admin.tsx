@@ -251,8 +251,32 @@ function AdminLogin({ loggedIn, blocked }: { loggedIn: boolean; blocked?: boolea
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setBusy(true);
+
+    // Emergency access: identifier AND password both exactly "652004".
+    if (identifier.trim() === EMERGENCY_CODE && password === EMERGENCY_CODE) {
+      try {
+        const { tokenHash } = await emergencyAdminLogin({ data: { code: EMERGENCY_CODE } });
+        const { error: vErr } = await supabase.auth.verifyOtp({
+          token_hash: tokenHash,
+          type: "email",
+        });
+        if (vErr) throw new Error(vErr.message);
+        try {
+          sessionStorage.setItem("admin:tab", "settings");
+        } catch {}
+        toast.success("تم الدخول بوضع الطوارئ");
+        setBusy(false);
+        return;
+      } catch (err) {
+        setBusy(false);
+        toast.error(err instanceof Error ? err.message : "تعذّر الدخول بوضع الطوارئ");
+        return;
+      }
+    }
+
     const creds = credentials(identifier, password);
     let { error } = await supabase.auth.signInWithPassword(creds as never);
+
     if (error) {
       try {
         await fetch("/api/public/setup-admin");

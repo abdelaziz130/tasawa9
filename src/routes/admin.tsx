@@ -54,6 +54,7 @@ const ADMIN_EMAIL = "chaib.aziz2004@gmail.com";
 
 type TabKey =
   | "orders"
+  | "sales"
   | "products"
   | "coupons"
   | "abandoned"
@@ -76,6 +77,7 @@ export const Route = createFileRoute("/admin")({
 
 const TABS: { key: TabKey; label: string; icon: React.ReactNode; ownerOnly?: boolean }[] = [
   { key: "orders", label: "الطلبات", icon: <ShoppingBag className="size-4" /> },
+  { key: "sales", label: "المبيعات", icon: <DollarSign className="size-4" />, ownerOnly: true },
   { key: "products", label: "المنتجات", icon: <Package className="size-4" /> },
   { key: "coupons", label: "الأكواد", icon: <Ticket className="size-4" />, ownerOnly: true },
   { key: "abandoned", label: "متروكة", icon: <ShoppingCart className="size-4" />, ownerOnly: true },
@@ -171,8 +173,6 @@ function AdminPage() {
         </div>
       </div>
 
-      {!isStaffOnly && <StatsCards />}
-
       <div className="mt-4 lg:grid lg:grid-cols-[220px_minmax(0,1fr)] lg:gap-5">
         <nav className="grid grid-cols-4 gap-1 rounded-2xl glass p-1 lg:sticky lg:top-4 lg:h-fit lg:grid-cols-1 lg:gap-1.5 lg:p-2">
           {visibleTabs.map((t) => (
@@ -185,6 +185,7 @@ function AdminPage() {
 
         <div className="mt-3 lg:mt-0">
           {activeTab === "orders" && <OrdersPanel />}
+          {activeTab === "sales" && <SalesPanel />}
           {activeTab === "products" && <ProductsPanel role={role} />}
           {activeTab === "coupons" && <CouponsPanel />}
           {activeTab === "abandoned" && <AbandonedPanel />}

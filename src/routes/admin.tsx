@@ -2133,31 +2133,16 @@ function SettingsPanel() {
         </button>
       </form>
 
-      <form onSubmit={saveAccount} className="rounded-2xl glass p-3 space-y-2">
+      <div className="rounded-2xl glass p-3 space-y-1.5">
         <div className="flex items-center gap-1.5 text-sm font-extrabold">
           <Lock className="size-4 text-primary" /> حساب المدير
         </div>
-        <Fld label="بريد إلكتروني جديد">
-          <input
-            value={newEmail}
-            onChange={(e) => setNewEmail(e.target.value)}
-            type="email"
-            className="sinp"
-            dir="ltr"
-          />
-        </Fld>
-        <Fld label="كلمة مرور جديدة">
-          <input
-            value={newPass}
-            onChange={(e) => setNewPass(e.target.value)}
-            type="password"
-            className="sinp"
-            dir="ltr"
-          />
-        </Fld>
-        <button className="w-full h-11 rounded-xl glass font-extrabold">تحديث الحساب</button>
+        <p className="text-xs text-muted-foreground">
+          لتغيير البريد الإلكتروني أو رقم الهاتف أو كلمة المرور، افتح تبويب «الحساب».
+        </p>
         <style>{`.sinp{width:100%;height:42px;border-radius:12px;border:1px solid var(--border);padding:0 12px;font-size:14px;background:var(--input);color:var(--foreground);outline:none}.sinp:focus{border-color:var(--primary)}`}</style>
-      </form>
+      </div>
+
 
       <div className="rounded-2xl glass p-3 space-y-2">
         <div className="flex items-center gap-1.5 text-sm font-extrabold">

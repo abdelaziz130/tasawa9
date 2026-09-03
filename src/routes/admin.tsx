@@ -1977,8 +1977,6 @@ function SettingsPanel() {
   const [kb, setKb] = useState("");
   const [loaded, setLoaded] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [newEmail, setNewEmail] = useState("");
-  const [newPass, setNewPass] = useState("");
   const [iconUrl, setIconUrl] = useState("");
   const [iconBusy, setIconBusy] = useState(false);
   const pwa = usePwaInstall();
@@ -2052,18 +2050,6 @@ function SettingsPanel() {
     qc.invalidateQueries({ queryKey: ["store-settings-admin"] });
   };
 
-  const saveAccount = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const payload: { email?: string; password?: string } = {};
-    if (newEmail.trim()) payload.email = newEmail.trim();
-    if (newPass) payload.password = newPass;
-    if (!payload.email && !payload.password) return toast.error("أدخل بريداً أو كلمة مرور جديدة");
-    const { error } = await supabase.auth.updateUser(payload);
-    if (error) return toast.error(error.message);
-    setNewEmail("");
-    setNewPass("");
-    toast.success("تم تحديث بيانات الحساب");
-  };
 
   return (
     <div className="space-y-3">

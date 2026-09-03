@@ -153,8 +153,10 @@ function AdminPage() {
   const role: Role | null = isOwner ? "owner" : blocked ? null : roleRow?.role ?? null;
   if (!session || !role) return <AdminLogin loggedIn={!!session} blocked={blocked} />;
 
-  const isStaffOnly = role === "sub_admin";
-  const visibleTabs = TABS.filter((t) => !t.ownerOnly || !isStaffOnly);
+  // Global store settings belong to the owner account only; every other staff
+  // account (admin or sub_admin) sees orders / products / their own account.
+  const visibleTabs = TABS.filter((t) => !t.ownerOnly || isOwner);
+
   const activeTab = visibleTabs.some((t) => t.key === tab) ? tab : "orders";
 
 

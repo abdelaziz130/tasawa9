@@ -11,20 +11,11 @@ import { Home, Building2, Loader2, Truck, Tag, CheckCircle2, XCircle } from "luc
 import { estimateDelivery } from "@/lib/wilaya-eta";
 import { COMMUNES } from "@/lib/communes";
 import { trackAbandonedCart, clearAbandonedCart } from "@/lib/abandoned-cart";
+import { validateCoupon, redeemCoupon, type PublicCoupon } from "@/lib/storefront.functions";
 
 type DeliveryType = "توصيل للمنزل" | "توصيل لمكتب الشحن";
 
-type Coupon = {
-  id: string;
-  code: string;
-  discount_type: string;
-  discount_value: number;
-  min_order: number;
-  active: boolean;
-  expires_at: string | null;
-  usage_limit: number | null;
-  times_used: number;
-};
+type Coupon = PublicCoupon;
 
 export function CheckoutModal({
   open,

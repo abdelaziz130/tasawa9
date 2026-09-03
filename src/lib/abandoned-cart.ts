@@ -1,5 +1,5 @@
-import { supabase } from "@/integrations/supabase/client";
 import type { CartItem } from "@/lib/cart";
+import { saveAbandonedCart } from "@/lib/storefront.functions";
 
 const ID_KEY = "abandoned_cart_id";
 
@@ -17,33 +17,31 @@ export async function trackAbandonedCart(draft: AbandonedDraft) {
   if (!draft.cart_items.length) return;
   if (!draft.phone?.trim() && !draft.customer_name?.trim()) return;
 
-  const payload = {
-    customer_name: draft.customer_name ?? null,
-    phone: draft.phone ?? null,
-    wilaya: draft.wilaya ?? null,
-    commune: draft.commune ?? null,
-    cart_items: draft.cart_items,
-    subtotal: draft.subtotal,
-    updated_at: new Date().toISOString(),
-  };
-
   let id: string | null = null;
   try {
     id = localStorage.getItem(ID_KEY);
   } catch {}
 
-  if (id) {
-    const { error } = await supabase.from("abandoned_carts").update(payload).eq("id", id);
-    if (!error) return;
-  }
-  const { data } = await supabase
-    .from("abandoned_carts")
-    .insert(payload)
-    .select("id")
-    .single();
-  if (data?.id) {
+  const res = await saveAbandonedCart({
+    data: {
+      id,
+      customer_name: draft.customer_name ?? null,
+      phone: draft.phone ?? null,
+      wilaya: draft.wilaya ?? null,
+      commune: draft.commune ?? null,
+      cart_items: draft.cart_items.map((i) => ({
+        id: String(i.id),
+        title: String(i.title),
+        price: Number(i.price),
+        quantity: Number(i.quantity),
+      })),
+      subtotal: Number(draft.subtotal),
+    },
+  });
+
+  if (res?.id) {
     try {
-      localStorage.setItem(ID_KEY, data.id);
+      localStorage.setItem(ID_KEY, res.id);
     } catch {}
   }
 }

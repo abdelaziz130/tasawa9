@@ -172,7 +172,7 @@ function AdminPage() {
         <div className="flex items-center gap-1">
           <ThemeToggle />
           <SettingsMenu
-            adminMode={role !== "sub_admin"}
+            adminMode={isOwner}
             onSetDefaultTheme={async (id) => {
               const { data: row } = await supabase.from("store_settings").select("id").limit(1).maybeSingle();
               if (row?.id) await supabase.from("store_settings").update({ default_theme: id }).eq("id", row.id);

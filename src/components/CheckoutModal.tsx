@@ -169,10 +169,7 @@ export function CheckoutModal({
       .select("id")
       .single();
     if (!error && coupon) {
-      await supabase
-        .from("coupons")
-        .update({ times_used: coupon.times_used + 1 })
-        .eq("id", coupon.id);
+      await redeemCoupon({ data: { code: coupon.code } }).catch(() => {});
     }
     setSubmitting(false);
     if (error || !data) {

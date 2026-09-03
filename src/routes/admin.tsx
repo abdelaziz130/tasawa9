@@ -153,8 +153,10 @@ function AdminPage() {
   const role: Role | null = isOwner ? "owner" : blocked ? null : roleRow?.role ?? null;
   if (!session || !role) return <AdminLogin loggedIn={!!session} blocked={blocked} />;
 
-  const isStaffOnly = role === "sub_admin";
-  const visibleTabs = TABS.filter((t) => !t.ownerOnly || !isStaffOnly);
+  // Global store settings belong to the owner account only; every other staff
+  // account (admin or sub_admin) sees orders / products / their own account.
+  const visibleTabs = TABS.filter((t) => !t.ownerOnly || isOwner);
+
   const activeTab = visibleTabs.some((t) => t.key === tab) ? tab : "orders";
 
 
@@ -170,7 +172,7 @@ function AdminPage() {
         <div className="flex items-center gap-1">
           <ThemeToggle />
           <SettingsMenu
-            adminMode={role !== "sub_admin"}
+            adminMode={isOwner}
             onSetDefaultTheme={async (id) => {
               const { data: row } = await supabase.from("store_settings").select("id").limit(1).maybeSingle();
               if (row?.id) await supabase.from("store_settings").update({ default_theme: id }).eq("id", row.id);
@@ -1977,8 +1979,6 @@ function SettingsPanel() {
   const [kb, setKb] = useState("");
   const [loaded, setLoaded] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [newEmail, setNewEmail] = useState("");
-  const [newPass, setNewPass] = useState("");
   const [iconUrl, setIconUrl] = useState("");
   const [iconBusy, setIconBusy] = useState(false);
   const pwa = usePwaInstall();
@@ -2052,18 +2052,6 @@ function SettingsPanel() {
     qc.invalidateQueries({ queryKey: ["store-settings-admin"] });
   };
 
-  const saveAccount = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const payload: { email?: string; password?: string } = {};
-    if (newEmail.trim()) payload.email = newEmail.trim();
-    if (newPass) payload.password = newPass;
-    if (!payload.email && !payload.password) return toast.error("أدخل بريداً أو كلمة مرور جديدة");
-    const { error } = await supabase.auth.updateUser(payload);
-    if (error) return toast.error(error.message);
-    setNewEmail("");
-    setNewPass("");
-    toast.success("تم تحديث بيانات الحساب");
-  };
 
   return (
     <div className="space-y-3">
@@ -2133,31 +2121,16 @@ function SettingsPanel() {
         </button>
       </form>
 
-      <form onSubmit={saveAccount} className="rounded-2xl glass p-3 space-y-2">
+      <div className="rounded-2xl glass p-3 space-y-1.5">
         <div className="flex items-center gap-1.5 text-sm font-extrabold">
           <Lock className="size-4 text-primary" /> حساب المدير
         </div>
-        <Fld label="بريد إلكتروني جديد">
-          <input
-            value={newEmail}
-            onChange={(e) => setNewEmail(e.target.value)}
-            type="email"
-            className="sinp"
-            dir="ltr"
-          />
-        </Fld>
-        <Fld label="كلمة مرور جديدة">
-          <input
-            value={newPass}
-            onChange={(e) => setNewPass(e.target.value)}
-            type="password"
-            className="sinp"
-            dir="ltr"
-          />
-        </Fld>
-        <button className="w-full h-11 rounded-xl glass font-extrabold">تحديث الحساب</button>
+        <p className="text-xs text-muted-foreground">
+          لتغيير البريد الإلكتروني أو رقم الهاتف أو كلمة المرور، افتح تبويب «الحساب».
+        </p>
         <style>{`.sinp{width:100%;height:42px;border-radius:12px;border:1px solid var(--border);padding:0 12px;font-size:14px;background:var(--input);color:var(--foreground);outline:none}.sinp:focus{border-color:var(--primary)}`}</style>
-      </form>
+      </div>
+
 
       <div className="rounded-2xl glass p-3 space-y-2">
         <div className="flex items-center gap-1.5 text-sm font-extrabold">

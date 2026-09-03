@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { getRecentPurchaseEvents } from "@/lib/storefront.functions";
 import { ShoppingBag, X } from "lucide-react";
 
 type PurchaseEvent = {
@@ -66,26 +66,15 @@ export function SocialProof() {
   const { data } = useQuery({
     queryKey: ["purchase-events-ticker"],
     queryFn: async () => {
-      const today = startOfToday();
-      const todayRes = await supabase
-        .from("purchase_events")
-        .select("id,first_name,wilaya,product_title,created_at")
-        .gte("created_at", today.toISOString())
-        .order("created_at", { ascending: false })
-        .limit(30);
-      if (todayRes.error) throw todayRes.error;
-      if ((todayRes.data ?? []).length > 0) return todayRes.data as PurchaseEvent[];
-
-      const yesterday = new Date(today.getTime() - 24 * 60 * 60 * 1000);
-      const yRes = await supabase
-        .from("purchase_events")
-        .select("id,first_name,wilaya,product_title,created_at")
-        .gte("created_at", yesterday.toISOString())
-        .lt("created_at", today.toISOString())
-        .order("created_at", { ascending: false })
-        .limit(30);
-      if (yRes.error) throw yRes.error;
-      return (yRes.data ?? []) as PurchaseEvent[];
+      const all = (await getRecentPurchaseEvents()) as PurchaseEvent[];
+      const today = startOfToday().getTime();
+      const todays = all.filter((e) => new Date(e.created_at).getTime() >= today);
+      if (todays.length > 0) return todays;
+      const yesterday = today - 24 * 60 * 60 * 1000;
+      return all.filter((e) => {
+        const t = new Date(e.created_at).getTime();
+        return t >= yesterday && t < today;
+      });
     },
     refetchInterval: 5 * 60_000,
     staleTime: 60_000,

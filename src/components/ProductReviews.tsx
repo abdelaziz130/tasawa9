@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Star, Camera, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { uploadReviewPhoto } from "@/lib/storefront.functions";
 
 type Review = {
   id: string;
@@ -44,20 +45,36 @@ export function ProductReviews({ productId }: { productId: string }) {
   const [saving, setSaving] = useState(false);
 
   const uploadPhoto = async (file: File) => {
-    setUploading(true);
-    const ext = file.name.split(".").pop() ?? "jpg";
-    const path = `${productId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
-    const { error } = await supabase.storage
-      .from("review-photos")
-      .upload(path, file, { cacheControl: "3600", upsert: false });
-    if (error) {
-      setUploading(false);
-      toast.error("فشل رفع الصورة");
+    const allowed = ["image/jpeg", "image/png", "image/webp"] as const;
+    if (!allowed.includes(file.type as (typeof allowed)[number])) {
+      toast.error("الصور المسموحة: JPG أو PNG أو WEBP");
       return;
     }
-    const { data } = supabase.storage.from("review-photos").getPublicUrl(path);
-    setPhotoUrl(data.publicUrl);
-    setUploading(false);
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("حجم الصورة يجب أن يكون أقل من 5 ميغابايت");
+      return;
+    }
+    setUploading(true);
+    try {
+      const buf = await file.arrayBuffer();
+      let binary = "";
+      const bytes = new Uint8Array(buf);
+      for (let i = 0; i < bytes.length; i += 0x8000) {
+        binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+      }
+      const res = await uploadReviewPhoto({
+        data: {
+          product_id: productId,
+          content_type: file.type as (typeof allowed)[number],
+          base64: btoa(binary),
+        },
+      });
+      setPhotoUrl(res.url);
+    } catch {
+      toast.error("فشل رفع الصورة");
+    } finally {
+      setUploading(false);
+    }
   };
 
   const submit = async (e: React.FormEvent) => {

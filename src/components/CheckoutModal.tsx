@@ -102,31 +102,22 @@ export function CheckoutModal({
     const code = couponCode.trim().toUpperCase();
     if (!code) return;
     setCheckingCoupon(true);
-    const { data } = await supabase
-      .from("coupons")
-      .select("*")
-      .eq("code", code)
-      .eq("active", true)
-      .maybeSingle();
+    let res: Awaited<ReturnType<typeof validateCoupon>> | null = null;
+    try {
+      res = await validateCoupon({ data: { code, subtotal: Number(subtotal) } });
+    } catch {
+      res = null;
+    }
     setCheckingCoupon(false);
-    const c = data as Coupon | null;
-    if (!c) {
+    if (!res || !res.ok) {
       setCoupon(null);
+      if (res?.reason === "expired") return toast.error("انتهت صلاحية الرمز");
+      if (res?.reason === "exhausted") return toast.error("تم استنفاد الرمز");
+      if (res?.reason === "min_order")
+        return toast.error(`الحد الأدنى للطلب: ${formatDZD(res.min_order ?? 0)}`);
       return toast.error("رمز غير صحيح");
     }
-    if (c.expires_at && new Date(c.expires_at).getTime() < Date.now()) {
-      setCoupon(null);
-      return toast.error("انتهت صلاحية الرمز");
-    }
-    if (c.usage_limit != null && c.times_used >= c.usage_limit) {
-      setCoupon(null);
-      return toast.error("تم استنفاد الرمز");
-    }
-    if (Number(subtotal) < Number(c.min_order)) {
-      setCoupon(null);
-      return toast.error(`الحد الأدنى للطلب: ${formatDZD(c.min_order)}`);
-    }
-    setCoupon(c);
+    setCoupon(res.coupon);
     toast.success("تم تطبيق التخفيض");
   };
 

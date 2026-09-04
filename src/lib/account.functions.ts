@@ -54,7 +54,17 @@ export const updateMyEmail = createServerFn({ method: "POST" })
     });
     if (error) throw new Error(error.message);
 
-    await supabaseAdmin.from("user_roles").update({ email: data.newEmail }).eq("user_id", context.userId);
+    const { error: directoryError } = await supabaseAdmin
+      .from("user_roles")
+      .update({ email: data.newEmail })
+      .eq("user_id", context.userId);
+    if (directoryError) {
+      await supabaseAdmin.auth.admin.updateUserById(context.userId, {
+        email: saved,
+        email_confirm: true,
+      });
+      throw new Error("تعذّر مزامنة البريد مع بيانات الحساب");
+    }
 
     const { data: fresh } = await supabaseAdmin.auth.admin.getUserById(context.userId);
     if ((fresh?.user?.email ?? "").toLowerCase() !== data.newEmail) {

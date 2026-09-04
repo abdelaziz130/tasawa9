@@ -1,0 +1,4 @@
+- [x] Replace email-based owner access with permanent owner identity
+- [ ] Remove privileged-key dependency from account email changes
+- [ ] Confirm Lovable Cloud backend and authentication are enabled
+- [ ] Verify owner email form and access after change

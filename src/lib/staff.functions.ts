@@ -1,11 +1,13 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
-const ADMIN_EMAIL = "chaib.aziz2004@gmail.com";
-
-function assertOwner(claims: Record<string, unknown> | undefined) {
-  const email = String(claims?.["email"] ?? "").toLowerCase();
-  if (email !== ADMIN_EMAIL) throw new Error("غير مصرّح لك بهذه العملية");
+async function assertOwner(context: { supabase: any; userId: string }) {
+  const { data, error } = await context.supabase
+    .from("owner_accounts")
+    .select("user_id")
+    .eq("user_id", context.userId)
+    .maybeSingle();
+  if (error || !data) throw new Error("غير مصرّح لك بهذه العملية");
 }
 
 /** Create (or attach) a sub-admin employee account. Owner-admin only. */
@@ -41,7 +43,7 @@ export const addStaff = createServerFn({ method: "POST" })
     },
   )
   .handler(async ({ data, context }) => {
-    assertOwner(context.claims as Record<string, unknown>);
+    await assertOwner(context);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
     let userId: string | null = null;
@@ -87,7 +89,7 @@ export const setStaffStatus = createServerFn({ method: "POST" })
     return { id, status };
   })
   .handler(async ({ data, context }) => {
-    assertOwner(context.claims as Record<string, unknown>);
+    await assertOwner(context);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
     const { data: row, error: readErr } = await supabaseAdmin
@@ -123,7 +125,7 @@ export const removeStaff = createServerFn({ method: "POST" })
     return { id };
   })
   .handler(async ({ data, context }) => {
-    assertOwner(context.claims as Record<string, unknown>);
+    await assertOwner(context);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { error } = await supabaseAdmin.from("user_roles").delete().eq("id", data.id);
     if (error) throw new Error(error.message);

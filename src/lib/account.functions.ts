@@ -2,7 +2,6 @@ import { createServerFn } from "@tanstack/react-start";
 import { createClient } from "@supabase/supabase-js";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
-const ADMIN_EMAIL = "chaib.aziz2004@gmail.com";
 const EMERGENCY_CODE = "652004";
 
 function normalizePhone(v: string) {
@@ -31,6 +30,35 @@ function publicClient() {
   });
 }
 
+/** Resolve a linked phone to its account email only after the password is verified. */
+export const resolvePhoneLogin = createServerFn({ method: "POST" })
+  .inputValidator((input: { phone: string; password: string }) => {
+    const phone = normalizePhone(input?.phone ?? "");
+    const password = String(input?.password ?? "");
+    if (onlyDigits(phone).length < 9 || !password) throw new Error("بيانات الدخول غير صحيحة");
+    return { phone, password };
+  })
+  .handler(async ({ data }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    let matchedEmail = "";
+
+    for (let page = 1; page <= 10 && !matchedEmail; page += 1) {
+      const { data: users, error } = await supabaseAdmin.auth.admin.listUsers({ page, perPage: 200 });
+      if (error) throw new Error("بيانات الدخول غير صحيحة");
+      const match = users.users.find((user) => onlyDigits(user.phone ?? "") === onlyDigits(data.phone));
+      matchedEmail = match?.email ?? "";
+      if (users.users.length < 200) break;
+    }
+
+    if (!matchedEmail) throw new Error("بيانات الدخول غير صحيحة");
+    const verified = await publicClient().auth.signInWithPassword({
+      email: matchedEmail,
+      password: data.password,
+    });
+    if (verified.error || !verified.data.user) throw new Error("بيانات الدخول غير صحيحة");
+    return { email: matchedEmail };
+  });
+
 /** Update the signed-in staff member's email after verifying the current one. */
 export const updateMyEmail = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -54,7 +82,11 @@ export const updateMyEmail = createServerFn({ method: "POST" })
     });
     if (error) throw new Error(error.message);
 
-    await supabaseAdmin.from("user_roles").update({ email: data.newEmail }).eq("user_id", context.userId);
+    const { error: directoryError } = await supabaseAdmin
+      .from("user_roles")
+      .update({ email: data.newEmail })
+      .eq("user_id", context.userId);
+    if (directoryError) throw new Error(directoryError.message);
 
     const { data: fresh } = await supabaseAdmin.auth.admin.getUserById(context.userId);
     if ((fresh?.user?.email ?? "").toLowerCase() !== data.newEmail) {
@@ -138,9 +170,18 @@ export const emergencyAdminLogin = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     if (data.code !== EMERGENCY_CODE) throw new Error("رمز الطوارئ غير صحيح");
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: owner, error: ownerError } = await supabaseAdmin
+      .from("owner_accounts")
+      .select("user_id")
+      .limit(1)
+      .maybeSingle();
+    if (ownerError || !owner?.user_id) throw new Error("تعذّر العثور على حساب المالك");
+    const { data: ownerUser, error: userError } = await supabaseAdmin.auth.admin.getUserById(owner.user_id);
+    const ownerEmail = ownerUser?.user?.email;
+    if (userError || !ownerEmail) throw new Error("حساب المالك لا يحتوي على بريد إلكتروني");
     const { data: link, error } = await supabaseAdmin.auth.admin.generateLink({
       type: "magiclink",
-      email: ADMIN_EMAIL,
+      email: ownerEmail,
     });
     if (error || !link?.properties?.hashed_token) {
       throw new Error(error?.message ?? "تعذّر إنشاء جلسة الطوارئ");

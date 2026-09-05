@@ -14,7 +14,7 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import { SettingsMenu } from "@/components/SettingsMenu";
 import { generateProductCopy, generateLandingPage } from "@/lib/ai.functions";
 import { addStaff, removeStaff, setStaffStatus } from "@/lib/staff.functions";
-import { emergencyAdminLogin } from "@/lib/account.functions";
+import { emergencyAdminLogin, resolvePhoneLogin } from "@/lib/account.functions";
 
 import {
   Package,
@@ -52,7 +52,6 @@ import { AccountPanel } from "@/components/admin/AccountPanel";
 import { LandingEditor } from "@/components/admin/LandingEditor";
 
 
-const ADMIN_EMAIL = "chaib.aziz2004@gmail.com";
 const EMERGENCY_CODE = "652004";
 
 
@@ -125,23 +124,35 @@ function AdminPage() {
     };
   }, []);
 
-  const email = session?.user?.email?.toLowerCase() ?? null;
-  const isOwner = email === ADMIN_EMAIL;
+  const { data: ownerRow, isLoading: ownerLoading } = useQuery({
+    queryKey: ["my-owner-account", session?.user?.id],
+    enabled: !!session?.user?.id,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("owner_accounts")
+        .select("user_id")
+        .eq("user_id", session?.user.id ?? "")
+        .maybeSingle();
+      if (error) throw error;
+      return data ?? null;
+    },
+  });
+  const isOwner = !!ownerRow;
   const { data: roleRow, isLoading: roleLoading } = useQuery({
     queryKey: ["my-role", session?.user?.id],
-    enabled: !!session?.user?.id && !isOwner,
+    enabled: !!session?.user?.id && !ownerLoading && !isOwner,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("user_roles")
         .select("role,status")
-        .eq("user_id", session!.user.id)
+        .eq("user_id", session?.user.id ?? "")
         .maybeSingle();
       if (error) throw error;
       return (data ?? null) as { role: "admin" | "sub_admin"; status: string } | null;
     },
   });
 
-  if (!ready || (session && !isOwner && roleLoading)) {
+  if (!ready || (session && (ownerLoading || (!isOwner && roleLoading)))) {
     return (
       <main className="min-h-dvh grid place-items-center">
         <Loader2 className="size-6 animate-spin text-muted-foreground" />
@@ -166,7 +177,7 @@ function AdminPage() {
         <div>
           <h1 className="text-xl font-extrabold">لوحة التحكم</h1>
           <div className="text-xs text-muted-foreground">
-            {session.user.email} • {role === "sub_admin" ? "مساعد" : "مدير"}
+            {session.user.email ?? (session.user.phone ? `+${session.user.phone.replace(/^\+/, "")}` : "—")} • {role === "sub_admin" ? "مساعد" : "مدير"}
           </div>
         </div>
         <div className="flex items-center gap-1">
@@ -249,10 +260,6 @@ function AdminLogin({ loggedIn, blocked }: { loggedIn: boolean; blocked?: boolea
   const [resetPass, setResetPass] = useState("");
   const navigate = useNavigate();
 
-  useEffect(() => {
-    fetch("/api/public/setup-admin").catch(() => {});
-  }, []);
-
   const credentials = (value: string, pass: string) => {
     const v = value.trim();
     const isEmail = v.includes("@");
@@ -292,16 +299,19 @@ function AdminLogin({ loggedIn, blocked }: { loggedIn: boolean; blocked?: boolea
       }
     }
 
-    const creds = credentials(identifier, password);
+    let creds = credentials(identifier, password);
     let { error } = await supabase.auth.signInWithPassword(creds as never);
 
-    if (error) {
+    if (error && !identifier.includes("@")) {
       try {
-        await fetch("/api/public/setup-admin");
-      } catch {}
-      const retry = await supabase.auth.signInWithPassword(creds as never);
-      error = retry.error;
+        const resolved = await resolvePhoneLogin({ data: { phone: identifier, password } });
+        creds = { email: resolved.email, password };
+        error = (await supabase.auth.signInWithPassword(creds)).error;
+      } catch {
+        // Keep the same generic sign-in error below to avoid exposing account details.
+      }
     }
+
     setBusy(false);
     if (error) {
       toast.error("بيانات الدخول غير صحيحة");
@@ -309,11 +319,16 @@ function AdminLogin({ loggedIn, blocked }: { loggedIn: boolean; blocked?: boolea
     }
     const { data } = await supabase.auth.getUser();
     const uid = data.user?.id;
-    if (data.user?.email?.toLowerCase() !== ADMIN_EMAIL) {
+    const { data: owner } = await supabase
+      .from("owner_accounts")
+      .select("user_id")
+      .eq("user_id", uid ?? "")
+      .maybeSingle();
+    if (!owner) {
       const { data: row } = await supabase
         .from("user_roles")
         .select("role,status")
-        .eq("user_id", uid!)
+        .eq("user_id", uid ?? "")
         .maybeSingle();
       if (!row || row.status === "blocked") {
         await supabase.auth.signOut();

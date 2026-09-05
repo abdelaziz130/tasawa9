@@ -52,6 +52,7 @@ import { AccountPanel } from "@/components/admin/AccountPanel";
 import { LandingEditor } from "@/components/admin/LandingEditor";
 
 
+const ADMIN_EMAIL = "chaib.aziz2004@gmail.com";
 const EMERGENCY_CODE = "652004";
 
 
@@ -124,28 +125,23 @@ function AdminPage() {
     };
   }, []);
 
-  const { data: access, isLoading: roleLoading } = useQuery({
+  const email = session?.user?.email?.toLowerCase() ?? null;
+  const isOwner = email === ADMIN_EMAIL;
+  const { data: roleRow, isLoading: roleLoading } = useQuery({
     queryKey: ["my-role", session?.user?.id],
-    enabled: !!session?.user?.id,
+    enabled: !!session?.user?.id && !isOwner,
     queryFn: async () => {
-      const userId = session?.user?.id;
-      if (!userId) return { isOwner: false, roleRow: null };
-      const [ownerResult, roleResult] = await Promise.all([
-        supabase.from("owner_accounts").select("user_id").eq("user_id", userId).maybeSingle(),
-        supabase.from("user_roles").select("role,status").eq("user_id", userId).maybeSingle(),
-      ]);
-      if (ownerResult.error) throw ownerResult.error;
-      if (roleResult.error) throw roleResult.error;
-      return {
-        isOwner: Boolean(ownerResult.data),
-        roleRow: (roleResult.data ?? null) as { role: "admin" | "sub_admin"; status: string } | null,
-      };
+      const { data, error } = await supabase
+        .from("user_roles")
+        .select("role,status")
+        .eq("user_id", session!.user.id)
+        .maybeSingle();
+      if (error) throw error;
+      return (data ?? null) as { role: "admin" | "sub_admin"; status: string } | null;
     },
   });
-  const isOwner = access?.isOwner ?? false;
-  const roleRow = access?.roleRow ?? null;
 
-  if (!ready || (session && roleLoading)) {
+  if (!ready || (session && !isOwner && roleLoading)) {
     return (
       <main className="min-h-dvh grid place-items-center">
         <Loader2 className="size-6 animate-spin text-muted-foreground" />
@@ -313,12 +309,13 @@ function AdminLogin({ loggedIn, blocked }: { loggedIn: boolean; blocked?: boolea
     }
     const { data } = await supabase.auth.getUser();
     const uid = data.user?.id;
-    if (uid) {
-      const [{ data: owner }, { data: row }] = await Promise.all([
-        supabase.from("owner_accounts").select("user_id").eq("user_id", uid).maybeSingle(),
-        supabase.from("user_roles").select("role,status").eq("user_id", uid).maybeSingle(),
-      ]);
-      if (!owner && (!row || row.status === "blocked")) {
+    if (data.user?.email?.toLowerCase() !== ADMIN_EMAIL) {
+      const { data: row } = await supabase
+        .from("user_roles")
+        .select("role,status")
+        .eq("user_id", uid!)
+        .maybeSingle();
+      if (!row || row.status === "blocked") {
         await supabase.auth.signOut();
         toast.error(row ? "تم سحب صلاحياتك من الإدارة" : "هذا الحساب لا يملك صلاحية الإدارة");
         navigate({ to: "/" });

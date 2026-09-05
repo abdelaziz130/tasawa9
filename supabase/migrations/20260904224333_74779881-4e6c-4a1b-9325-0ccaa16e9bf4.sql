@@ -1,2 +1,0 @@
-ALTER FUNCTION public.is_admin() SECURITY INVOKER;
-ALTER FUNCTION public.is_staff() SECURITY INVOKER;

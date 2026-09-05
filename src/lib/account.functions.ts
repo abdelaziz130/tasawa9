@@ -43,27 +43,21 @@ export const updateMyEmail = createServerFn({ method: "POST" })
     return { currentEmail, newEmail };
   })
   .handler(async ({ data, context }) => {
-    const { data: me, error: readError } = await context.supabase.auth.getUser();
-    if (readError) throw new Error("تعذّر التحقق من الحساب، سجّل الدخول مرة أخرى");
-    const saved = (me.user?.email ?? "").toLowerCase();
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: me } = await supabaseAdmin.auth.admin.getUserById(context.userId);
+    const saved = (me?.user?.email ?? "").toLowerCase();
     if (!saved || saved !== data.currentEmail) throw new Error("البريد الحالي غير صحيح");
 
-    const { data: updated, error } = await context.supabase.auth.updateUser({
+    const { error } = await supabaseAdmin.auth.admin.updateUserById(context.userId, {
       email: data.newEmail,
+      email_confirm: true,
     });
     if (error) throw new Error(error.message);
-    if ((updated.user?.email ?? "").toLowerCase() !== data.newEmail) {
-      throw new Error("تعذّر حفظ البريد الإلكتروني، حاول مرة أخرى");
-    }
 
-    const { error: directoryError } = await context.supabase
-      .from("user_roles")
-      .update({ email: data.newEmail })
-      .eq("user_id", context.userId);
-    if (directoryError) throw new Error("تم تغيير البريد، لكن تعذّر تحديث دليل الحسابات");
+    await supabaseAdmin.from("user_roles").update({ email: data.newEmail }).eq("user_id", context.userId);
 
-    const { data: fresh, error: verifyError } = await context.supabase.auth.getUser();
-    if (verifyError || (fresh.user?.email ?? "").toLowerCase() !== data.newEmail) {
+    const { data: fresh } = await supabaseAdmin.auth.admin.getUserById(context.userId);
+    if ((fresh?.user?.email ?? "").toLowerCase() !== data.newEmail) {
       throw new Error("تعذّر حفظ البريد الإلكتروني، حاول مرة أخرى");
     }
     return { ok: true, email: data.newEmail };

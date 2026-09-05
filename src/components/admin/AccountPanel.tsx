@@ -39,10 +39,6 @@ export function AccountPanel() {
     setBusy(kind);
     try {
       await fn();
-      if (kind === "email") {
-        const refreshed = await supabase.auth.refreshSession();
-        if (refreshed.error) throw refreshed.error;
-      }
       await reload();
       if (kind === "email") setEmailForm({ current: "", next: "", confirm: "" });
       if (kind === "phone") setPhoneForm({ current: "", next: "", confirm: "" });

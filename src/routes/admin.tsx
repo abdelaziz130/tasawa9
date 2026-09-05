@@ -260,10 +260,6 @@ function AdminLogin({ loggedIn, blocked }: { loggedIn: boolean; blocked?: boolea
   const [resetPass, setResetPass] = useState("");
   const navigate = useNavigate();
 
-  useEffect(() => {
-    fetch("/api/public/setup-admin").catch(() => {});
-  }, []);
-
   const credentials = (value: string, pass: string) => {
     const v = value.trim();
     const isEmail = v.includes("@");
@@ -316,13 +312,6 @@ function AdminLogin({ loggedIn, blocked }: { loggedIn: boolean; blocked?: boolea
       }
     }
 
-    if (error) {
-      try {
-        await fetch("/api/public/setup-admin");
-      } catch {}
-      const retry = await supabase.auth.signInWithPassword(creds as never);
-      error = retry.error;
-    }
     setBusy(false);
     if (error) {
       toast.error("بيانات الدخول غير صحيحة");

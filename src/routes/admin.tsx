@@ -14,7 +14,7 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import { SettingsMenu } from "@/components/SettingsMenu";
 import { generateProductCopy, generateLandingPage } from "@/lib/ai.functions";
 import { addStaff, removeStaff, setStaffStatus } from "@/lib/staff.functions";
-import { emergencyAdminLogin } from "@/lib/account.functions";
+import { emergencyAdminLogin, resolvePhoneLogin } from "@/lib/account.functions";
 
 import {
   Package,
@@ -303,8 +303,18 @@ function AdminLogin({ loggedIn, blocked }: { loggedIn: boolean; blocked?: boolea
       }
     }
 
-    const creds = credentials(identifier, password);
+    let creds = credentials(identifier, password);
     let { error } = await supabase.auth.signInWithPassword(creds as never);
+
+    if (error && !identifier.includes("@")) {
+      try {
+        const resolved = await resolvePhoneLogin({ data: { phone: identifier, password } });
+        creds = { email: resolved.email, password };
+        error = (await supabase.auth.signInWithPassword(creds)).error;
+      } catch {
+        // Keep the same generic sign-in error below to avoid exposing account details.
+      }
+    }
 
     if (error) {
       try {

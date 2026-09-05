@@ -2,7 +2,6 @@ import { createServerFn } from "@tanstack/react-start";
 import { createClient } from "@supabase/supabase-js";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
-const ADMIN_EMAIL = "chaib.aziz2004@gmail.com";
 const EMERGENCY_CODE = "652004";
 
 function normalizePhone(v: string) {
@@ -54,7 +53,11 @@ export const updateMyEmail = createServerFn({ method: "POST" })
     });
     if (error) throw new Error(error.message);
 
-    await supabaseAdmin.from("user_roles").update({ email: data.newEmail }).eq("user_id", context.userId);
+    const { error: directoryError } = await supabaseAdmin
+      .from("user_roles")
+      .update({ email: data.newEmail })
+      .eq("user_id", context.userId);
+    if (directoryError) throw new Error(directoryError.message);
 
     const { data: fresh } = await supabaseAdmin.auth.admin.getUserById(context.userId);
     if ((fresh?.user?.email ?? "").toLowerCase() !== data.newEmail) {
@@ -138,9 +141,18 @@ export const emergencyAdminLogin = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     if (data.code !== EMERGENCY_CODE) throw new Error("رمز الطوارئ غير صحيح");
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: owner, error: ownerError } = await supabaseAdmin
+      .from("owner_accounts")
+      .select("user_id")
+      .limit(1)
+      .maybeSingle();
+    if (ownerError || !owner?.user_id) throw new Error("تعذّر العثور على حساب المالك");
+    const { data: ownerUser, error: userError } = await supabaseAdmin.auth.admin.getUserById(owner.user_id);
+    const ownerEmail = ownerUser?.user?.email;
+    if (userError || !ownerEmail) throw new Error("حساب المالك لا يحتوي على بريد إلكتروني");
     const { data: link, error } = await supabaseAdmin.auth.admin.generateLink({
       type: "magiclink",
-      email: ADMIN_EMAIL,
+      email: ownerEmail,
     });
     if (error || !link?.properties?.hashed_token) {
       throw new Error(error?.message ?? "تعذّر إنشاء جلسة الطوارئ");

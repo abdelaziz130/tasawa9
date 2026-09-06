@@ -75,6 +75,20 @@ export const updateMyEmail = createServerFn({ method: "POST" })
     const { data: me } = await supabaseAdmin.auth.admin.getUserById(context.userId);
     const saved = (me?.user?.email ?? "").toLowerCase();
     if (!saved || saved !== data.currentEmail) throw new Error("البريد الحالي غير صحيح");
+    if (saved === data.newEmail) throw new Error("البريد الجديد مطابق للبريد الحالي");
+
+    // Security notice to the OLD address (best effort: needs email delivery enabled).
+    let noticeSent = false;
+    try {
+      const { error: noticeError } = await supabaseAdmin.auth.admin.generateLink({
+        type: "email_change_current",
+        email: saved,
+        newEmail: data.newEmail,
+      });
+      noticeSent = !noticeError;
+    } catch {
+      noticeSent = false;
+    }
 
     const { error } = await supabaseAdmin.auth.admin.updateUserById(context.userId, {
       email: data.newEmail,
@@ -92,8 +106,9 @@ export const updateMyEmail = createServerFn({ method: "POST" })
     if ((fresh?.user?.email ?? "").toLowerCase() !== data.newEmail) {
       throw new Error("تعذّر حفظ البريد الإلكتروني، حاول مرة أخرى");
     }
-    return { ok: true, email: data.newEmail };
+    return { ok: true, email: data.newEmail, oldEmail: saved, noticeSent };
   });
+
 
 /** Update the signed-in staff member's phone after verifying the current one. */
 export const updateMyPhone = createServerFn({ method: "POST" })

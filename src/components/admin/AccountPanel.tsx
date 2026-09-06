@@ -38,18 +38,23 @@ export function AccountPanel() {
   const run = async (kind: Kind, fn: () => Promise<unknown>) => {
     setBusy(kind);
     try {
-      await fn();
+      const result = (await fn()) as { noticeSent?: boolean; oldEmail?: string } | undefined;
       await reload();
       if (kind === "email") setEmailForm({ current: "", next: "", confirm: "" });
       if (kind === "phone") setPhoneForm({ current: "", next: "", confirm: "" });
       if (kind === "password") setPassForm({ current: "", next: "", confirm: "" });
-      toast.success("تم الحفظ بنجاح");
+      if (kind === "email" && result?.noticeSent) {
+        toast.success(`تم الحفظ، وأُرسل إشعار أمني إلى ${result.oldEmail}`);
+      } else {
+        toast.success("تم الحفظ بنجاح");
+      }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "تعذّر إتمام العملية");
     } finally {
       setBusy(null);
     }
   };
+
 
   return (
     <div className="space-y-3">

@@ -172,15 +172,15 @@ function AdminPage() {
 
 
   return (
-    <main className="min-h-dvh mx-auto max-w-md lg:max-w-6xl px-3 py-4">
-      <div className="mb-4 flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-extrabold">لوحة التحكم</h1>
-          <div className="text-xs text-muted-foreground">
+    <main className="min-h-dvh mx-auto max-w-md lg:max-w-6xl px-3 pb-24 pt-4 lg:pb-8">
+      <div className="mb-4 grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3 sm:flex sm:items-center sm:justify-between">
+        <div className="min-w-0">
+          <h1 className="truncate text-xl font-extrabold">لوحة التحكم</h1>
+          <div className="truncate text-xs text-muted-foreground">
             {session.user.email ?? (session.user.phone ? `+${session.user.phone.replace(/^\+/, "")}` : "—")} • {role === "sub_admin" ? "مساعد" : "مدير"}
           </div>
         </div>
-        <div className="flex items-center gap-1">
+        <div className="flex shrink-0 items-center gap-1.5">
           <ThemeToggle />
           <SettingsMenu
             adminMode={isOwner}
@@ -195,7 +195,7 @@ function AdminPage() {
               await supabase.auth.signOut();
               toast.success("تم تسجيل الخروج");
             }}
-            className="h-10 px-3 rounded-2xl glass text-sm font-bold flex items-center gap-1"
+            className="h-11 px-3 rounded-2xl glass text-sm font-bold flex items-center gap-1"
           >
             <LogOut className="size-4" /> خروج
           </button>
@@ -203,7 +203,7 @@ function AdminPage() {
       </div>
 
       <div className="mt-4 lg:grid lg:grid-cols-[220px_minmax(0,1fr)] lg:gap-5">
-        <nav className="grid grid-cols-4 gap-1 rounded-2xl glass p-1 lg:sticky lg:top-4 lg:h-fit lg:grid-cols-1 lg:gap-1.5 lg:p-2">
+        <nav className="-mx-3 flex snap-x gap-1.5 overflow-x-auto px-3 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden lg:mx-0 lg:sticky lg:top-4 lg:h-fit lg:grid lg:grid-cols-1 lg:overflow-visible lg:rounded-2xl lg:glass lg:p-2">
           {visibleTabs.map((t) => (
             <TabBtn key={t.key} active={activeTab === t.key} onClick={() => setTab(t.key)}>
               <span className="hidden lg:inline-flex">{t.icon}</span>
@@ -241,14 +241,15 @@ function TabBtn({
   return (
     <button
       onClick={onClick}
-      className={`h-10 rounded-xl text-xs font-bold transition ${
-        active ? "btn-primary" : "text-muted-foreground"
+      className={`h-12 shrink-0 snap-start whitespace-nowrap rounded-2xl px-4 text-sm font-bold transition lg:w-full lg:justify-start lg:gap-2 lg:px-3 ${
+        active ? "btn-primary" : "glass text-muted-foreground lg:glass-none lg:bg-transparent"
       }`}
     >
       {children}
     </button>
   );
 }
+
 
 function AdminLogin({ loggedIn, blocked }: { loggedIn: boolean; blocked?: boolean }) {
   const [identifier, setIdentifier] = useState("");

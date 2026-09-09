@@ -7,6 +7,8 @@ import { ProductDetailModal } from "@/components/ProductDetailModal";
 import { CheckoutModal } from "@/components/CheckoutModal";
 import { StoriesBanner } from "@/components/StoriesBanner";
 import { FlashDeals } from "@/components/FlashDeals";
+import { InstallAppCard } from "@/components/InstallAppCard";
+
 import { supabase } from "@/integrations/supabase/client";
 import { useCart } from "@/lib/cart";
 import { formatDZD } from "@/lib/format";

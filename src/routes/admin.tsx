@@ -241,9 +241,10 @@ function TabBtn({
   return (
     <button
       onClick={onClick}
-      className={`h-12 shrink-0 snap-start whitespace-nowrap rounded-2xl px-4 text-sm font-bold transition lg:w-full lg:justify-start lg:gap-2 lg:px-3 ${
-        active ? "btn-primary" : "glass text-muted-foreground lg:glass-none lg:bg-transparent"
+      className={`flex h-12 shrink-0 snap-start items-center justify-center gap-2 whitespace-nowrap rounded-2xl px-4 text-sm font-bold transition lg:w-full lg:justify-start lg:px-3 ${
+        active ? "btn-primary" : "glass text-muted-foreground lg:bg-transparent lg:backdrop-blur-none"
       }`}
+
     >
       {children}
     </button>

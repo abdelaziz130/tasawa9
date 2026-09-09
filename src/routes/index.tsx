@@ -147,8 +147,11 @@ function HomePage() {
               </div>
             </div>
 
+            <InstallAppCard />
+
             <StoriesBanner products={inStock} onOpen={openProduct} />
             <FlashDeals products={inStock} onOpen={openProduct} />
+
 
             {/* Mobile filters toggle */}
             <div className="mb-3 flex items-center gap-2">
